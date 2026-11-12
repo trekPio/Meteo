@@ -56,4 +56,5 @@ for i in range(days, -1, -1):
 
 store.rebuild_hourly(sorted(all_months))
 store.rebuild_index()
+store.rebuild_rain_norms()
 print(f"Gotowe: {total} rekordów, {len(all_months)} miesięcy, błędów: {errors}")

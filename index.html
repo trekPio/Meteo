@@ -39,6 +39,21 @@
   .vval { font-size:34px; line-height:1; font-variant-numeric:tabular-nums; }
   .wunit.clk { cursor:pointer; user-select:none; } .wunit.clk:hover { background:#4c5869; }
   .wspd.ms { font-size:46px; }
+  .raintile { grid-column:span 2; }
+  .rrow { display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-top:4px; }
+  .rcloud { width:80px; height:80px; flex:none; }
+  .rboxes { display:flex; flex-direction:column; gap:10px; }
+  .rcap { font-size:11px; color:var(--muted); margin-bottom:4px; text-align:center; }
+  .vbox.rb { height:72px; }
+  .rls { min-width:200px; flex:1; max-width:260px; position:relative; }
+  .rr { display:flex; justify-content:space-between; gap:18px; font-size:14px; }
+  .rk { color:var(--muted); cursor:pointer; border-bottom:1px dotted #4c5869; } .rk:hover { color:#cfd6de; }
+  .rv { color:#a3be8c; font-variant-numeric:tabular-nums; } .rv small { color:var(--muted); font-size:11px; margin-left:3px; }
+  .rtrk { height:2px; border-radius:1px; background:#2a323c; margin:3px 0 7px; }
+  .rtrk i { display:block; height:100%; width:0; border-radius:1px; background:#a3be8c; opacity:.75; transition:width .6s; }
+  .rtip { position:absolute; left:-12px; right:-12px; z-index:5; background:#2e3640; border:1px solid #4c5869; border-radius:10px; padding:9px 11px; font-size:12.5px; line-height:1.5; }
+  .rtip:before { content:""; position:absolute; top:-6px; left:22px; width:10px; height:10px; background:#2e3640; border-left:1px solid #4c5869; border-top:1px solid #4c5869; transform:rotate(45deg); }
+  .rtip b { font-weight:600; } .rtip .m { color:var(--muted); display:block; margin-top:4px; }
   .trend { position:absolute; top:7px; left:8px; font-size:15px; color:#6b7785; }
   .trend.up { color:#c99a86; } .trend.down { color:#7fa7b8; }
   .mm { display:grid; grid-template-columns:1fr 1fr; margin-top:8px; font-size:12px; color:var(--muted); text-align:center; }
@@ -97,6 +112,8 @@ const K = {
   press: ["pressure.relative", "pressure.absolute"],
   wind: ["wind.wind_speed"], gust: ["wind.wind_gust"], dir: ["wind.wind_direction"],
   rainDay: ["rainfall.daily", "rainfall_piezo.daily"], rainRate: ["rainfall.rain_rate", "rainfall_piezo.rain_rate"],
+  rainState: ["rainfall_piezo.state", "rainfall.state"], rainEvent: ["rainfall_piezo.event", "rainfall.event"],
+  rain1h: ["rainfall_piezo.1_hour", "rainfall.1_hour"], rain24h: ["rainfall_piezo.24_hours", "rainfall.24_hours"],
   rainWeek: ["rainfall.weekly", "rainfall_piezo.weekly"], rainMonth: ["rainfall.monthly", "rainfall_piezo.monthly"],
   rainYear: ["rainfall.yearly", "rainfall_piezo.yearly"],
   solar: ["solar_and_uvi.solar"], uvi: ["solar_and_uvi.uvi"],
@@ -193,8 +210,77 @@ function buildGauges() {
     box.appendChild(el);
   }
   buildWindTile(box);
+  buildRainTile(box);
   document.getElementById("u-temp").onclick = () => { tempUnit = tempUnit === "C" ? "K" : "C"; saveUnits(); redrawTiles(); };
   document.getElementById("u-wind").onclick = () => { windUnit = windUnit === "kmh" ? "ms" : "kmh"; saveUnits(); redrawTiles(); };
+}
+
+// ---------- Kafelek opadów ----------
+// [klucz, etykieta, klucz normy, opis, rodzaj normy]
+const RAIN_ROWS = [
+  ["rainEvent", "Zdarzenie", "event", "Suma opadu od początku bieżącego epizodu deszczu. Stacja zeruje ją po dłuższej przerwie bez opadu.", "max"],
+  ["rain1h", "Ostatnia 1 h", "1_hour", "Suma opadu z ostatnich 60 minut (okno przesuwne, nie pełna godzina zegarowa).", "max"],
+  ["rain24h", "Ostatnie 24 h", "24_hours", "Suma opadu z ostatnich 24 godzin (okno przesuwne).", "max"],
+  ["rainWeek", "Tydzień", "weekly", "Suma opadu od początku bieżącego tygodnia.", "avg"],
+  ["rainMonth", "Miesiąc", "monthly", "Suma opadu od 1. dnia bieżącego miesiąca.", "avg"],
+  ["rainYear", "Rok", "yearly", "Suma opadu od początku bieżącego roku.", "sum"],
+];
+const RAIN_NORM_TXT = {
+  event: "największe zdarzenie", "1_hour": "największy opad godzinowy", "24_hours": "największa suma dobowa",
+  weekly: "średnia suma tygodniowa", monthly: "średnia suma miesięczna", yearly: "suma",
+};
+let rainTip = null, rainInfo = {};
+
+function buildRainTile(box) {
+  const el = document.createElement("section"); el.className = "box gauge raintile";
+  el.innerHTML = `<h2>Opady</h2>
+  <div class="rrow">
+    <svg id="rCloud" viewBox="0 0 120 120" class="rcloud" aria-hidden="true"></svg>
+    <div class="rboxes">
+      <div><div class="rcap">Intensywność</div><div class="vbox rb"><span class="wunit">mm/h</span><span class="vval" id="rRate">–</span></div></div>
+      <div><div class="rcap">Dziś</div><div class="vbox rb"><span class="wunit">mm</span><span class="vval" id="rDay">–</span></div></div>
+    </div>
+    <div class="rls" id="rList">
+      <div class="rr" style="margin-bottom:9px"><span class="rk" data-k="state">Stan</span><span class="rv" id="rState">–</span></div>
+      ${RAIN_ROWS.map(([k, l]) => `<div class="rr"><span class="rk" data-k="${k}">${l}</span><span class="rv"><span id="rv-${k}">–</span><small>mm</small></span></div><div class="rtrk"><i id="rb-${k}"></i></div>`).join("")}
+    </div>
+  </div>`;
+  box.appendChild(el);
+  const ls = el.querySelector("#rList");
+  ls.addEventListener("click", (e) => {
+    const k = e.target.closest(".rk"); closeRainTip(); if (!k) return;
+    const row = k.parentElement, info = rainInfo[k.dataset.k];
+    rainTip = document.createElement("div"); rainTip.className = "rtip";
+    rainTip.innerHTML = k.dataset.k === "state"
+      ? `<b>Stan</b><br>Czy czujnik wykrywa opad w tej chwili: Pada albo Brak opadu.`
+      : `<b>${info.label}</b><br>${info.desc}${info.bar ? `<span class="m">${info.bar}</span>` : ""}`;
+    rainTip.style.top = (row.offsetTop + row.offsetHeight + 6) + "px";
+    ls.appendChild(rainTip); e.stopPropagation();
+  });
+  document.addEventListener("click", closeRainTip);
+}
+function closeRainTip() { if (rainTip) { rainTip.remove(); rainTip = null; } }
+
+function updateRainTile(v, norms) {
+  const raining = (pick(v, "rainState") ?? 0) > 0 || (pick(v, "rainRate") ?? 0) > 0;
+  const drop = raining ? "#88c0d0" : "#3b4552";
+  document.getElementById("rCloud").innerHTML =
+    `<path d="M34 76 h54 a18 18 0 0 0 0 -36 a26 26 0 0 0 -50 -6 a20 20 0 0 0 -4 42 z" fill="none" stroke="${FG}" stroke-width="6" stroke-linejoin="round"/>
+     <g stroke="${drop}" stroke-width="5" stroke-linecap="round"><line x1="42" y1="86" x2="37" y2="98"/><line x1="60" y1="96" x2="55" y2="108"/><line x1="78" y1="86" x2="73" y2="98"/></g>`;
+  document.getElementById("rRate").textContent = fmt(pick(v, "rainRate"));
+  document.getElementById("rDay").textContent = fmt(pick(v, "rainDay"));
+  const st = document.getElementById("rState");
+  st.textContent = raining ? "Pada" : "Brak opadu"; st.style.color = raining ? "#88c0d0" : "var(--muted)";
+  for (const [k, label, nk, desc, kind] of RAIN_ROWS) {
+    const val = pick(v, k), n = norms[nk];
+    document.getElementById("rv-" + k).textContent = fmt(val, k === "rainYear" ? 1 : 1);
+    const pct = val != null && n > 0 ? Math.min(100, Math.round(val / n * 100)) : 0;
+    document.getElementById("rb-" + k).style.width = pct + "%";
+    const per = kind === "sum" ? " z ostatnich 12 miesięcy" : " z ostatnich 12 miesięcy";
+    rainInfo[k] = { label, desc, bar: n > 0 && val != null
+      ? `Pasek: wartość ÷ ${RAIN_NORM_TXT[nk]}${per} (${fmt(n)} mm) = ${Math.round(val / n * 100)}%${val > n ? " (powyżej normy pasek zostaje pełny)" : ""}.`
+      : "Pasek: brak danych historycznych do porównania." };
+  }
 }
 
 // ---------- Jednostki przełączane kliknięciem (zapamiętywane w przeglądarce) ----------
@@ -289,8 +375,6 @@ function updateWindTile(v, t, maxToday) {
 function updateCards(v) {
   const cards = [
     ["Odczuwalna", fmt(pick(v, "feels")), "°C", "punkt rosy " + fmt(pick(v, "dew")) + " °C"],
-    ["Opad dziś", fmt(pick(v, "rainDay")), "mm", "teraz " + fmt(pick(v, "rainRate")) + " mm/h"],
-    ["Opad w miesiącu", fmt(pick(v, "rainMonth")), "mm", "tydzień " + fmt(pick(v, "rainWeek")) + " · rok " + fmt(pick(v, "rainYear"), 0) + " mm"],
     ["Słońce", fmt(pick(v, "solar"), 0), "W/m²", "UV " + fmt(pick(v, "uvi"))],
     ["W domu", fmt(pick(v, "tin")), "°C", "wilgotność " + fmt(pick(v, "hin"), 0) + " %"],
   ].filter(c => c[1] !== "–");
@@ -511,6 +595,7 @@ async function loadLatest() {
   const mxw = vals.length ? Math.max(...vals, pick(v, "gust") ?? 0) : pick(v, "gust");
   updateWindTile(v, L.t, mxw);
   lastTiles = { g: [v, rows], w: [v, L.t, mxw] };
+  updateRainTile(v, await get("data/rain_norms.json").catch(() => ({})));
 }
 
 async function rebuild() { try { err(); buildCharts(await loadRows()); } catch (e) { err(e); } }

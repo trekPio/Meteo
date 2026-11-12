@@ -88,3 +88,28 @@ def rebuild_index():
     days = sorted(p.stem for p in DAYS.glob("*.json"))
     months = sorted(p.stem for p in HOURLY.glob("*.json"))
     (ROOT / "index.json").write_text(json.dumps({"days": days, "months": months}))
+
+
+def rebuild_rain_norms():
+    """Normy opadu z ostatnich 365 dni (agregaty godzinowe) -> data/rain_norms.json.
+    Krótkie okresy porównujemy z rekordem, dłuższe ze średnią."""
+    import time
+    since = time.time() - 365 * 86400
+    rows = []
+    for f in sorted(HOURLY.glob("*.json")):
+        rows += [r for r in json.loads(f.read_text()) if r["t"] >= since]
+    if not rows:
+        return
+    pre = "rainfall_piezo." if any("rainfall_piezo.daily" in r for r in rows) else "rainfall."
+    mx = lambda k: max((r.get(pre + k) or 0) for r in rows)
+    daily = defaultdict(float)
+    for r in rows:
+        d = day_of(r["t"])
+        daily[d] = max(daily[d], r.get(pre + "daily") or 0)
+    total = sum(daily.values())
+    norms = {
+        "event": mx("event"), "1_hour": mx("1_hour"), "24_hours": mx("24_hours"),
+        "weekly": round(total / 52.18, 1), "monthly": round(total / 12, 1), "yearly": round(total, 1),
+        "days": len(daily),
+    }
+    (ROOT / "rain_norms.json").write_text(json.dumps(norms))
