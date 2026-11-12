@@ -35,9 +35,9 @@
   .ranges { display:flex; gap:6px; }
   .ranges button { border:1px solid var(--line); background:var(--card); color:var(--fg); padding:6px 12px; border-radius:8px; cursor:pointer; font:inherit; }
   .ranges button.on { background:var(--acc); border-color:var(--acc); color:#fff; }
-  .charts { display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 540px), 1fr)); gap:16px; }
+  .charts { display:grid; grid-template-columns:1fr; gap:16px; }
   .chart { padding:12px 10px 6px; }
-  .chart .c { height:320px; }
+  .chart .c { height:340px; }
   #err { color:#d9534f; }
 </style>
 </head>
@@ -46,7 +46,7 @@
   <div><h1>Moje meteo</h1><div id="updated">Ładowanie…</div></div>
   <div class="ranges">
     <button data-d="1" class="on">24 h</button><button data-d="3">3 dni</button>
-    <button data-d="7">7 dni</button><button data-d="30">30 dni</button>
+    <button data-d="7">7 dni</button><button data-d="30">30 dni</button><button data-d="365">Rok</button>
   </div>
 </header>
 <main>
@@ -255,6 +255,12 @@ const seriesData = (rows, key) => rows.map(r => ({ t: r.t * 1000, v: pick(r, key
 async function loadRows() {
   const idx = await get("data/index.json");
   const from = Date.now() / 1000 - range * 86400;
+  if (range > 30) {   // widok roczny: agregaty godzinowe z plików miesięcznych
+    const fromMonth = new Date(from * 1000).toISOString().slice(0, 7);
+    const months = (idx.months || []).filter(m => m >= fromMonth);
+    return (await Promise.all(months.map(m => get(`data/hourly/${m}.json`).catch(() => [])))).flat()
+      .filter(r => r.t >= from).sort((a, b) => a.t - b.t);
+  }
   const fromDay = new Date((from - 86400) * 1000).toISOString().slice(0, 10);
   const days = idx.days.filter(d => d >= fromDay);
   return (await Promise.all(days.map(d => get(`data/days/${d}.json`).catch(() => [])))).flat()

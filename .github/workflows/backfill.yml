@@ -1,0 +1,40 @@
+name: Pobierz historię Ecowitt (jednorazowo)
+
+on:
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "Ile dni wstecz pobrać"
+        default: "365"
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fetch          # nie koliduje z cyklicznym pobieraniem
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Pobierz historię
+        env:
+          ECOWITT_APP_KEY: ${{ secrets.ECOWITT_APP_KEY }}
+          ECOWITT_API_KEY: ${{ secrets.ECOWITT_API_KEY }}
+          ECOWITT_MAC: ${{ secrets.ECOWITT_MAC }}
+        run: python3 scripts/backfill.py "${{ inputs.days }}"
+
+      - name: Zapisz zmiany
+        run: |
+          git config user.name "meteo-bot"
+          git config user.email "meteo-bot@users.noreply.github.com"
+          git add data
+          git diff --cached --quiet && { echo "Bez zmian"; exit 0; }
+          git commit -m "historia: ${{ inputs.days }} dni"
+          git pull --rebase
+          git push

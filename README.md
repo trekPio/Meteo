@@ -29,3 +29,9 @@ Statyczna strona `index.html` rysuje z nich wykresy (amCharts 5). Bez serwera i 
 
 - GitHub uruchamia zaplanowane zadania z opóźnieniem (czasem 10–30 min), więc to nie jest podgląd na żywo.
 - Każdy pomiar to jeden commit. Dane zajmują mało miejsca (ok. 20–40 KB na dzień), ale historia commitów rośnie.
+
+## Dane historyczne (jednorazowo)
+
+*Actions → Pobierz historię Ecowitt (jednorazowo) → Run workflow* (domyślnie 365 dni, trwa ok. 10 min).
+Ostatnie ~90 dni pobiera co 5 min, starsze co 30 min (tyle przechowuje Ecowitt).
+Widok „Rok” na stronie korzysta z agregatów godzinowych w `data/hourly/`.
