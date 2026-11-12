@@ -156,7 +156,14 @@ const DARK = true;   // cała strona w ciemnym motywie
 // ---------- Pomocnicze ----------
 const pick = (o, name) => { for (const k of K[name]) if (o[k] != null) return o[k]; return null; };
 const fmt = (v, d = 1) => v == null ? "–" : v.toLocaleString("pl-PL", { maximumFractionDigits: d, minimumFractionDigits: d });
-const get = async (p) => { const r = await fetch(p + "?v=" + Date.now()); if (!r.ok) throw new Error(p + ": " + r.status); return r.json(); };
+// Dane czytane prosto z repozytorium (raw), więc nie czekają na przebudowę GitHub Pages
+const RAW = "https://raw.githubusercontent.com/trekPio/Meteo/main/";
+const get = async (p) => {
+  const url = (p.startsWith("data/") ? RAW : "") + p + "?v=" + Date.now();
+  let r = await fetch(url, { cache: "no-store" }).catch(() => null);
+  if ((!r || !r.ok) && p.startsWith("data/")) r = await fetch(p + "?v=" + Date.now());   // zapas: kopia na Pages
+  if (!r.ok) throw new Error(p + ": " + r.status); return r.json();
+};
 const err = (e) => document.getElementById("err").textContent = e ? "Nie udało się wczytać danych: " + e.message : "";
 
 function newRoot(el) {
