@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Moje meteo</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<style>
+  :root { --bg:#f4f6f8; --card:#fff; --fg:#1d2733; --muted:#6b7785; --line:#e3e7ec; --acc:#2f7fd8; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#12161b; --card:#1b2129; --fg:#e7ecf1; --muted:#8c98a6; --line:#2a323c; --acc:#5aa2f0; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--fg); }
+  header { padding:20px 20px 8px; display:flex; flex-wrap:wrap; gap:12px; align-items:baseline; justify-content:space-between; max-width:1200px; margin:auto; }
+  h1 { margin:0; font-size:22px; }
+  #updated { color:var(--muted); font-size:13px; }
+  main { max-width:1200px; margin:auto; padding:0 20px 40px; }
+  .cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:12px; margin:12px 0 24px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 14px; }
+  .card .l { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
+  .card .v { font-size:26px; font-weight:600; margin-top:2px; font-variant-numeric:tabular-nums; }
+  .card .v small { font-size:14px; font-weight:400; color:var(--muted); margin-left:3px; }
+  .card .s { color:var(--muted); font-size:12px; }
+  .ranges { display:flex; gap:6px; }
+  .ranges button { border:1px solid var(--line); background:var(--card); color:var(--fg); padding:6px 12px; border-radius:8px; cursor:pointer; font:inherit; }
+  .ranges button.on { background:var(--acc); border-color:var(--acc); color:#fff; }
+  .charts { display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 520px), 1fr)); gap:16px; }
+  .chart { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 14px 8px; height:280px; display:flex; flex-direction:column; }
+  .chart h2 { font-size:14px; margin:0 0 6px; font-weight:600; }
+  .chart div { flex:1; position:relative; }
+  #err { color:#d9534f; }
+</style>
+</head>
+<body>
+<header>
+  <div><h1>Moje meteo</h1><div id="updated">Ładowanie…</div></div>
+  <div class="ranges">
+    <button data-d="1" class="on">24 h</button><button data-d="3">3 dni</button>
+    <button data-d="7">7 dni</button><button data-d="30">30 dni</button>
+  </div>
+</header>
+<main>
+  <div id="err"></div>
+  <div class="cards" id="cards"></div>
+  <div class="charts" id="charts"></div>
+</main>
+
+<script>
+// Klucze z API Ecowitt (pierwszy istniejący z listy zostaje użyty)
+const K = {
+  temp: ["outdoor.temperature"], feels: ["outdoor.feels_like", "outdoor.app_temp"],
+  dew: ["outdoor.dew_point"], hum: ["outdoor.humidity"],
+  tin: ["indoor.temperature"], hin: ["indoor.humidity"],
+  press: ["pressure.relative", "pressure.absolute"],
+  wind: ["wind.wind_speed"], gust: ["wind.wind_gust"], dir: ["wind.wind_direction"],
+  rainDay: ["rainfall.daily", "rainfall_piezo.daily"], rainRate: ["rainfall.rain_rate", "rainfall_piezo.rain_rate"],
+  solar: ["solar_and_uvi.solar"], uvi: ["solar_and_uvi.uvi"],
+};
+const CHARTS = [
+  { t: "Temperatura", u: "°C", s: [["temp", "Temperatura", "#e4572e"], ["feels", "Odczuwalna", "#f3a712"], ["dew", "Punkt rosy", "#29a3a3"]] },
+  { t: "Wilgotność", u: "%", s: [["hum", "Na zewnątrz", "#2f7fd8"], ["hin", "Wewnątrz", "#9b6ad6"]] },
+  { t: "Ciśnienie", u: "hPa", s: [["press", "Ciśnienie", "#7a8b99"]] },
+  { t: "Wiatr", u: "m/s", s: [["wind", "Prędkość", "#4caf50"], ["gust", "Porywy", "#a5d6a7"]] },
+  { t: "Opad", u: "mm", s: [["rainDay", "Suma dzienna", "#2f7fd8"], ["rainRate", "Intensywność (mm/h)", "#90caf9"]] },
+  { t: "Słońce", u: "W/m²", s: [["solar", "Promieniowanie", "#f3a712"]], s2: [["uvi", "UV", "#e4572e"]] },
+];
+const DIRS = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
+const pick = (o, name) => { for (const k of K[name]) if (o[k] != null) return o[k]; return null; };
+const fmt = (v, d = 1) => v == null ? "–" : v.toLocaleString("pl-PL", { maximumFractionDigits: d, minimumFractionDigits: d });
+const get = async (p) => { const r = await fetch(p + "?v=" + Date.now()); if (!r.ok) throw new Error(p + ": " + r.status); return r.json(); };
+
+let range = 1, charts = [];
+
+async function loadLatest() {
+  const L = await get("data/latest.json"), v = L.values;
+  const age = Math.round((Date.now() / 1000 - L.t) / 60);
+  document.getElementById("updated").textContent =
+    "Pomiar: " + new Date(L.t * 1000).toLocaleString("pl-PL") + (age > 30 ? ` (${age} min temu)` : "");
+  const dir = pick(v, "dir");
+  const cards = [
+    ["Temperatura", fmt(pick(v, "temp")), "°C", "odczuwalna " + fmt(pick(v, "feels")) + " °C"],
+    ["Wilgotność", fmt(pick(v, "hum"), 0), "%", "punkt rosy " + fmt(pick(v, "dew")) + " °C"],
+    ["Ciśnienie", fmt(pick(v, "press")), "hPa", ""],
+    ["Wiatr", fmt(pick(v, "wind")), "m/s", "porywy " + fmt(pick(v, "gust")) + (dir != null ? " · " + DIRS[Math.round(dir / 22.5) % 16] : "")],
+    ["Opad dziś", fmt(pick(v, "rainDay")), "mm", "teraz " + fmt(pick(v, "rainRate")) + " mm/h"],
+    ["Słońce", fmt(pick(v, "solar"), 0), "W/m²", "UV " + fmt(pick(v, "uvi"))],
+    ["W domu", fmt(pick(v, "tin")), "°C", "wilgotność " + fmt(pick(v, "hin"), 0) + " %"],
+  ].filter(c => c[1] !== "–");
+  document.getElementById("cards").innerHTML = cards.map(([l, val, u, s]) =>
+    `<div class="card"><div class="l">${l}</div><div class="v">${val}<small>${u}</small></div><div class="s">${s}</div></div>`).join("");
+}
+
+async function loadHistory() {
+  const idx = await get("data/index.json");
+  const from = Date.now() / 1000 - range * 86400;
+  const fromDay = new Date((from - 86400) * 1000).toISOString().slice(0, 10);
+  const days = idx.days.filter(d => d >= fromDay);
+  let rows = (await Promise.all(days.map(d => get(`data/days/${d}.json`).catch(() => [])))).flat()
+    .filter(r => r.t >= from).sort((a, b) => a.t - b.t);
+  const step = Math.ceil(rows.length / 1500);           // przerzedzenie dla długich zakresów
+  if (step > 1) rows = rows.filter((_, i) => i % step === 0);
+  draw(rows);
+}
+
+function draw(rows) {
+  charts.forEach(c => c.destroy()); charts = [];
+  const box = document.getElementById("charts"); box.innerHTML = "";
+  const css = getComputedStyle(document.documentElement);
+  const muted = css.getPropertyValue("--muted"), line = css.getPropertyValue("--line");
+  const tick = (t) => { const d = new Date(t * 1000);
+    return range === 1 ? d.toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" })
+                       : d.toLocaleDateString("pl-PL", { day: "numeric", month: "numeric" }) + (range <= 3 ? " " + d.getHours() + ":00" : ""); };
+  const ds = (list, axis) => (list || []).map(([n, label, color]) => ({
+    label, borderColor: color, backgroundColor: color + "33", yAxisID: axis,
+    data: rows.map(r => ({ x: r.t, y: pick(r, n) })).filter(p => p.y != null),
+    borderWidth: 2, pointRadius: 0, tension: .25, spanGaps: 1800,
+  })).filter(d => d.data.length);
+
+  for (const c of CHARTS) {
+    const sets = [...ds(c.s, "y"), ...ds(c.s2, "y2")];
+    if (!sets.length) continue;
+    const el = document.createElement("section"); el.className = "chart";
+    el.innerHTML = `<h2>${c.t} <span style="color:${muted};font-weight:400">(${c.u})</span></h2><div><canvas></canvas></div>`;
+    box.appendChild(el);
+    charts.push(new Chart(el.querySelector("canvas"), {
+      type: "line", data: { datasets: sets },
+      options: {
+        maintainAspectRatio: false, animation: false, parsing: false,
+        interaction: { mode: "index", intersect: false },
+        plugins: {
+          legend: { display: sets.length > 1, labels: { color: muted, boxWidth: 12 } },
+          tooltip: { callbacks: { title: (i) => new Date(i[0].parsed.x * 1000).toLocaleString("pl-PL") } },
+        },
+        scales: {
+          x: { type: "linear", ticks: { color: muted, maxTicksLimit: 8, callback: tick }, grid: { color: line } },
+          y: { ticks: { color: muted }, grid: { color: line } },
+          ...(c.s2 ? { y2: { position: "right", ticks: { color: muted }, grid: { display: false }, min: 0 } } : {}),
+        },
+      },
+    }));
+  }
+  if (!box.children.length) box.innerHTML = `<p style="color:${muted}">Brak danych historycznych dla tego zakresu.</p>`;
+}
+
+async function refresh() {
+  try { document.getElementById("err").textContent = ""; await Promise.all([loadLatest(), loadHistory()]); }
+  catch (e) { document.getElementById("err").textContent = "Nie udało się wczytać danych: " + e.message; }
+}
+
+document.querySelectorAll(".ranges button").forEach(b => b.onclick = () => {
+  document.querySelectorAll(".ranges button").forEach(x => x.classList.toggle("on", x === b));
+  range = +b.dataset.d; loadHistory().catch(e => document.getElementById("err").textContent = e.message);
+});
+refresh();
+setInterval(refresh, 5 * 60 * 1000);
+</script>
+</body>
+</html>
