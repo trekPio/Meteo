@@ -50,7 +50,7 @@ def flatten_history(node, prefix=""):
 all_months, total, errors = set(), 0, 0
 for i in offsets:
     start = today - timedelta(days=i)
-    cycle = "5min" if i < 89 else "30min" if i < 365 else "240min"   # tyle przechowuje Ecowitt
+    cycle = "5min" if i < 89 else "30min" if i < 365 else "4hour"   # nazwy i okresy przechowywania wg API Ecowitt
     try:
         data = store.api("history", call_back=CALL_BACK, cycle_type=cycle,
                          start_date=start.strftime("%Y-%m-%d 00:00:00"),
