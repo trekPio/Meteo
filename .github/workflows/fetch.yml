@@ -2,7 +2,7 @@ name: Pobierz dane Ecowitt
 
 on:
   schedule:
-    - cron: "3-59/10 * * * *"   # co 10 min, przesunięte o 3 min
+           - cron: "*/10 * * * *"   # co 10 min (GitHub bywa opóźniony)
   workflow_dispatch:          # ręczne uruchomienie z zakładki Actions
 
 permissions:
