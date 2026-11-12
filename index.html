@@ -37,6 +37,8 @@
   .vbox { position:relative; width:104px; height:84px; border:1.5px solid #3b4552; border-radius:14px; background:#222a33;
           display:flex; align-items:center; justify-content:center; margin-right:16px; flex:none; }
   .vval { font-size:34px; line-height:1; font-variant-numeric:tabular-nums; }
+  .trend { position:absolute; top:7px; left:8px; font-size:15px; color:#6b7785; }
+  .trend.up { color:#c99a86; } .trend.down { color:#7fa7b8; }
   .mm { display:grid; grid-template-columns:1fr 1fr; margin-top:8px; font-size:12px; color:var(--muted); text-align:center; }
   .mm b { display:block; font-size:17px; font-weight:500; color:var(--fg); }
   .mm b.cmin { color:#88c0d0; } .mm b.cmax { color:#d08770; }
@@ -159,6 +161,21 @@ function iconBaro(p, trend) {
 }
 const polarC = (a, r, cx, cy) => { const t = (a - 90) * Math.PI / 180; return [cx + r * Math.cos(t), cy + r * Math.sin(t)]; };
 
+// Trend: zmiana względem pomiaru sprzed ok. 1 h (poniżej progu = stała)
+const TREND_EPS = { temp: 0.3, hum: 2, press: 0.5, wind: 0.8 };
+function setTrend(key, rows, cur) {
+  const el = document.getElementById("tr-" + key); if (!el) return;
+  const now = rows.length ? rows[rows.length - 1].t : Date.now() / 1000;
+  const old = rows.filter(r => r.t <= now - 3000 && pick(r, key) != null).pop();
+  let cls = "ti-arrow-narrow-right", st = "", tip = "stała";
+  if (old && cur != null) {
+    const d = cur - pick(old, key);
+    if (d > TREND_EPS[key]) { cls = "ti-arrow-up-right"; st = "up"; tip = "rośnie"; }
+    else if (d < -TREND_EPS[key]) { cls = "ti-arrow-down-right"; st = "down"; tip = "maleje"; }
+  } else { el.className = "ti trend"; el.title = ""; return; }
+  el.className = `ti trend ${cls} ${st}`; el.title = `Trend (1 h): ${tip}`;
+}
+
 const TILES = [["temp", "Temperatura", "°C", 1], ["hum", "Wilgotność", "%", 0], ["press", "Ciśnienie", "hPa", 1]];
 
 function buildGauges() {
@@ -167,7 +184,7 @@ function buildGauges() {
     const el = document.createElement("section"); el.className = "box gauge mtile";
     el.innerHTML = `<h2>${title}</h2>
       <div class="mrow"><svg id="ic-${key}" viewBox="0 0 120 220" class="mic" aria-hidden="true"></svg>
-        <div class="vbox"><span class="wunit">${unit}</span><span class="vval" id="v-${key}">–</span></div></div>
+        <div class="vbox"><span class="wunit">${unit}</span><i class="ti trend" id="tr-${key}"></i><span class="vval" id="v-${key}">–</span></div></div>
       <div class="mm"><div>min · <span id="tmin-${key}">–</span><b class="cmin" id="min-${key}">–</b></div>
         <div>maks · <span id="tmax-${key}">–</span><b class="cmax" id="max-${key}">–</b></div></div>`;
     box.appendChild(el);
@@ -187,6 +204,8 @@ function updateGauges(v, rows = []) {
     if (mn) { document.getElementById("min-" + key).textContent = f(mn.x, dec); document.getElementById("tmin-" + key).textContent = hm(mn.t); }
     if (mx) { document.getElementById("max-" + key).textContent = f(mx.x, dec); document.getElementById("tmax-" + key).textContent = hm(mx.t); }
   }
+  for (const [key] of TILES) setTrend(key, rows, pick(v, key));
+  setTrend("wind", rows, pick(v, "wind"));
   document.getElementById("ic-temp").innerHTML = iconThermo(pick(v, "temp"));
   document.getElementById("ic-hum").innerHTML = iconDrop(pick(v, "hum"));
   // tendencja ciśnienia: zmiana względem pomiaru sprzed ~3 h
@@ -221,7 +240,7 @@ function buildWindTile(box) {
       <g id="wArrow" style="transition:transform .8s ease;transform-box:view-box;transform-origin:100px 100px">
         <path d="M100 58 L126 134 L100 118 L74 134 Z" fill="none" stroke="#fff" stroke-width="4" stroke-linejoin="round"/></g>
     </svg>
-    <div class="wbox"><span class="wunit">km/h</span><span id="wSpd" class="wspd">–</span><span id="wDir" class="wdir"></span></div>
+    <div class="wbox"><span class="wunit">km/h</span><i class="ti trend" id="tr-wind"></i><span id="wSpd" class="wspd">–</span><span id="wDir" class="wdir"></span></div>
   </div>
   <div class="wfoot">
     <div><div class="l">Porywy</div><div class="v"><i class="ti ti-wind"></i> <span id="wGust">–</span> <small>km/h</small></div></div>
