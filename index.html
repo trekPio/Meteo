@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Moje meteo</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3/dist/tabler-icons.min.css">
 <script src="https://cdn.amcharts.com/lib/5/index.js"></script>
 <script src="https://cdn.amcharts.com/lib/5/xy.js"></script>
 <script src="https://cdn.amcharts.com/lib/5/radar.js"></script>
@@ -31,6 +32,18 @@
   .gauge { padding:10px 10px 4px; }
   .gauge h2, .chart h2 { font-size:13px; margin:0 4px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
   .gauge .g { height:190px; }
+  .windtile { grid-column:span 2; }
+  @media (max-width:520px) { .windtile { grid-column:auto; } }
+  .wrow { display:flex; align-items:center; justify-content:space-around; gap:12px; }
+  .wcomp { width:160px; height:160px; flex:none; }
+  .wbox { position:relative; width:110px; height:110px; border:1.5px solid #3b4552; border-radius:14px; background:#222a33;
+          display:flex; flex-direction:column; align-items:center; justify-content:center; margin-right:18px; flex:none; }
+  .wunit { position:absolute; top:16px; right:0; transform:translateX(50%); background:#3b4552; color:#e7ecf1; font-size:12px; font-weight:600; padding:3px 8px; border-radius:7px; }
+  .wspd { font-size:64px; line-height:1; font-variant-numeric:tabular-nums; }
+  .wdir { font-size:13px; color:#cfd6de; margin-top:4px; }
+  .wfoot { display:grid; grid-template-columns:1fr 1fr; text-align:center; margin-top:6px; }
+  .wfoot .l { font-size:12px; color:var(--muted); }
+  .wfoot .v { font-size:22px; } .wfoot .v i, .wfoot small { color:var(--muted); font-size:13px; }
   .cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(170px, 1fr)); gap:12px; margin:0 0 24px; }
   .card { padding:12px 14px; }
   .card .l { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
@@ -134,31 +147,6 @@ function makeGauge(el, [key, , unit, min, max, bands]) {
   gauges[key] = { di, label, unit, min, max };
 }
 
-function makeCompass(el) {
-  const root = newRoot(el);
-  const chart = root.container.children.push(am5radar.RadarChart.new(root, {
-    panX: false, panY: false, startAngle: -90, endAngle: 270, innerRadius: -14, radius: am5.percent(78), y: -12,
-  }));
-  const renderer = am5radar.AxisRendererCircular.new(root, { innerRadius: -14, strokeOpacity: .4, strokeWidth: 14 });
-  renderer.grid.template.set("forceHidden", true);
-  renderer.labels.template.set("forceHidden", true);
-  const axis = chart.xAxes.push(am5xy.ValueAxis.new(root, { min: 0, max: 360, strictMinMax: true, maxDeviation: 0, renderer }));
-  ["N", "NE", "E", "SE", "S", "SW", "W", "NW"].forEach((t, i) => {
-    const r = axis.createAxisRange(axis.makeDataItem({ value: i * 45 }));
-    r.get("label").setAll({ forceHidden: false, text: t, inside: true, radius: 24, fontSize: i % 2 ? 11 : 14, fontWeight: i % 2 ? "400" : "700" });
-    r.get("grid").setAll({ forceHidden: true });
-  });
-  const di = axis.makeDataItem({ value: 0 });
-  const hand = am5radar.ClockHand.new(root, { radius: am5.percent(70), innerRadius: am5.percent(0), bottomWidth: 12, pinRadius: 5 });
-  hand.hand.set("fill", am5.color("#e8684a"));
-  di.set("bullet", am5xy.AxisBullet.new(root, { sprite: hand }));
-  axis.createAxisRange(di);
-  const label = root.container.children.push(am5.Label.new(root, {
-    x: am5.p50, centerX: am5.p50, y: am5.p100, centerY: am5.p100, fontSize: 13, text: "–",
-  }));
-  gauges.dir = { di, label, compass: true };
-}
-
 function buildGauges() {
   const box = document.getElementById("gauges");
   for (const g of GAUGES) {
@@ -166,19 +154,59 @@ function buildGauges() {
     el.innerHTML = `<h2>${g[1]}</h2><div class="g"></div>`; box.appendChild(el);
     makeGauge(el.querySelector(".g"), g);
   }
-  const el = document.createElement("section"); el.className = "box gauge";
-  el.innerHTML = `<h2>Wiatr</h2><div class="g"></div>`; box.appendChild(el);
-  makeCompass(el.querySelector(".g"));
+  buildWindTile(box);
+}
+
+// ---------- Kafelek wiatru (SVG, km/h) ----------
+const kmh = (ms) => ms == null ? null : Math.round(ms * 3.6);
+const polar = (a, r) => { const t = (a - 90) * Math.PI / 180; return [100 + r * Math.cos(t), 100 + r * Math.sin(t)]; };
+
+function buildWindTile(box) {
+  let minor = "";
+  for (let i = 0; i < 16; i++) {
+    if (i % 4 === 0) continue;
+    const [x1, y1] = polar(i * 22.5, 67.5), [x2, y2] = polar(i * 22.5, i % 2 ? 73 : 76);
+    minor += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}"/>`;
+  }
+  const el = document.createElement("section"); el.className = "box gauge windtile";
+  el.innerHTML = `<h2>Wiatr <span id="wAge" style="text-transform:none;letter-spacing:0;font-weight:400"></span></h2>
+  <div class="wrow">
+    <svg viewBox="0 0 200 200" class="wcomp" role="img" aria-label="Kierunek wiatru">
+      <circle cx="100" cy="100" r="66" fill="none" stroke="#3b4552" stroke-width="3"/>
+      <g stroke="#6b7785" stroke-width="1.5">${minor}</g>
+      <g stroke="#cfd6de" stroke-width="3" stroke-linecap="round">
+        <line x1="100" y1="16" x2="100" y2="28"/><line x1="184" y1="100" x2="172" y2="100"/>
+        <line x1="100" y1="184" x2="100" y2="172"/><line x1="16" y1="100" x2="28" y2="100"/></g>
+      <text x="100" y="11" text-anchor="middle" font-size="11" fill="#8c98a6">N</text>
+      <path id="wArc" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round"/>
+      <g id="wArrow" style="transition:transform .8s ease;transform-origin:100px 100px">
+        <path d="M100 58 L126 134 L100 118 L74 134 Z" fill="none" stroke="#fff" stroke-width="4" stroke-linejoin="round"/></g>
+    </svg>
+    <div class="wbox"><span class="wunit">km/h</span><span id="wSpd" class="wspd">–</span><span id="wDir" class="wdir"></span></div>
+  </div>
+  <div class="wfoot">
+    <div><div class="l">Porywy</div><div class="v"><i class="ti ti-wind"></i> <span id="wGust">–</span> <small>km/h</small></div></div>
+    <div><div class="l">Maks. dziś</div><div class="v"><i class="ti ti-trending-up"></i> <span id="wMax">–</span> <small>km/h</small></div></div>
+  </div>`;
+  box.appendChild(el);
+}
+
+function updateWindTile(v, t, maxToday) {
+  const d = pick(v, "dir");
+  document.getElementById("wSpd").textContent = kmh(pick(v, "wind")) ?? "–";
+  document.getElementById("wGust").textContent = kmh(pick(v, "gust")) ?? "–";
+  document.getElementById("wMax").textContent = kmh(maxToday) ?? "–";
+  const age = Math.round((Date.now() / 1000 - t) / 60);
+  document.getElementById("wAge").textContent = "· " + (age < 1 ? "teraz" : age + " min temu");
+  if (d == null) return;
+  document.getElementById("wDir").textContent = `${DIRS[Math.round(d / 22.5) % 16]} (${Math.round(d)}°)`;
+  document.getElementById("wArrow").style.transform = `rotate(${(d + 180) % 360}deg)`;   // strzałka: dokąd wieje
+  const [x1, y1] = polar(d - 14, 66), [x2, y2] = polar(d + 14, 66);                      // łuk: skąd wieje
+  document.getElementById("wArc").setAttribute("d", `M${x1.toFixed(1)} ${y1.toFixed(1)} A66 66 0 0 1 ${x2.toFixed(1)} ${y2.toFixed(1)}`);
 }
 
 function updateGauges(v) {
   for (const [key, g] of Object.entries(gauges)) {
-    if (g.compass) {
-      const d = pick(v, "dir");
-      if (d != null) g.di.animate({ key: "value", to: d, duration: 800, easing: am5.ease.out(am5.ease.cubic) });
-      g.label.set("text", `[bold]${fmt(pick(v, "wind"))} m/s[/]  porywy ${fmt(pick(v, "gust"))}` + (d != null ? `  ·  ${DIRS[Math.round(d / 22.5) % 16]} ${Math.round(d)}°` : ""));
-      continue;
-    }
     const val = pick(v, key);
     if (val == null) continue;
     g.di.animate({ key: "value", to: Math.min(g.max, Math.max(g.min, val)), duration: 800, easing: am5.ease.out(am5.ease.cubic) });
@@ -405,6 +433,10 @@ async function loadLatest() {
   document.getElementById("updated").textContent =
     "Pomiar: " + new Date(L.t * 1000).toLocaleString("pl-PL") + (age > 30 ? ` (${age} min temu)` : "");
   updateGauges(v); updateCards(v);
+  const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Warsaw" });
+  const rows = await get(`data/days/${today}.json`).catch(() => []);
+  const vals = rows.map(r => pick(r, "gust") ?? pick(r, "wind")).filter(x => x != null);
+  updateWindTile(v, L.t, vals.length ? Math.max(...vals, pick(v, "gust") ?? 0) : pick(v, "gust"));
 }
 
 async function rebuild() { try { err(); buildCharts(await loadRows()); } catch (e) { err(e); } }
