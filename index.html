@@ -43,6 +43,8 @@
   .tchart { position:absolute; top:6px; right:8px; border:0; background:none; padding:2px; cursor:pointer; color:#ebcb8b; font-size:18px; line-height:1; opacity:.85; }
   .tchart:hover { opacity:1; transform:scale(1.1); }
   .chart { scroll-margin-top:12px; }
+  .rlg { display:flex; gap:14px; flex-wrap:wrap; margin:4px 6px 2px; font-size:12px; color:var(--muted); }
+  .rlg i { display:inline-block; width:10px; height:10px; border-radius:2px; vertical-align:-1px; margin-right:4px; }
   .chart h2 { display:flex; align-items:center; gap:8px; }
   .chart .home { width:24px; height:24px; border-radius:7px; border:1px solid #3b4552; background:#222a33; display:inline-flex; align-items:center; justify-content:center;
                  color:var(--muted); font-size:15px; cursor:pointer; padding:0; flex:none; }
@@ -156,7 +158,7 @@ const CHARTS = [
   { t: "Wilgotność (%)", s: [["hum", "Na zewnątrz", "#5b8ff9"], ["hin", "Wewnątrz", "#9270ca"]] },
   { t: "Ciśnienie (hPa)", s: [["press", "Ciśnienie", "#8c98a6"]] },
   { t: "Wiatr (m/s)", s: [["wind", "Prędkość", "#4caf50"], ["gust", "Porywy", "#a5d6a7"]] },
-  { t: "Opad (mm)", s: [["rainDay", "Suma dzienna", "#5b8ff9", "step"], ["rainRate", "Intensywność mm/h", "#90caf9"]] },
+  { t: "Opad (mm)", rain: true, s: [["rainDay", "Opad", "#5e9fd8"]] },
   { t: "Słońce (W/m²) i UV", s: [["solar", "Promieniowanie", "#f6bd16"]], s2: [["uvi", "UV", "#e8684a"]] },
 ];
 const DIRS = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
@@ -575,12 +577,13 @@ function setupCursorModes(el, chart, cursor, getX, rows, key) {
 let range = 1, chartRoots = [], seriesList = [];   // seriesList: {series, key}
 
 function buildCharts(rows) {
-  chartRoots.forEach(r => r.dispose()); chartRoots = []; seriesList = [];
+  chartRoots.forEach(r => r.dispose()); chartRoots = []; seriesList = []; rainSeries = [];
   const box = document.getElementById("charts"); box.innerHTML = "";
   for (const c of CHARTS) {
     const all = [...c.s.map(s => [...s, false]), ...(c.s2 || []).map(s => [...s, true])]
       .filter(([key]) => rows.some(r => pick(r, key) != null));
     if (!all.length) continue;
+    if (c.rain) { buildRainChart(box, c, rows); continue; }
 
     const el = document.createElement("section"); el.className = "box chart"; el.id = "ch-" + c.s[0][0];
     el.innerHTML = c.nord
@@ -655,6 +658,88 @@ function buildCharts(rows) {
     }
   }
   if (!box.children.length) box.innerHTML = `<p style="color:var(--muted)">Brak danych historycznych dla tego zakresu.</p>`;
+}
+
+// ---------- Wykres opadów: słupki sum w przedziale, natężenie chwilowe, suma narastająca ----------
+const GROUP_HOURS = { minute: 1 / 60, hour: 1, day: 24, week: 168, month: 720, year: 8760 };
+let rainSeries = [];
+
+// Przyrosty opadu z licznika dziennego (zeruje się o północy) + suma narastająca od początku zakresu
+function rainIncrements(rows) {
+  const out = []; let prev = null, prevDay = null, cum = 0;
+  for (const r of rows) {
+    const d = pick(r, "rainDay"); if (d == null) continue;
+    const day = new Date(r.t * 1000).toLocaleDateString("sv-SE", { timeZone: "Europe/Warsaw" });
+    let inc = prev == null ? 0 : (day !== prevDay || d < prev ? d : d - prev);
+    inc = Math.max(0, +inc.toFixed(2)); cum += inc;
+    out.push({ t: r.t * 1000, v: inc, r: pick(r, "rainRate") ?? 0, c: +cum.toFixed(1) });
+    prev = d; prevDay = day;
+  }
+  return out;
+}
+
+function buildRainChart(box, c, rows) {
+  const el = document.createElement("section"); el.className = "box chart"; el.id = "ch-rainDay";
+  el.innerHTML = `<h2><button class="home" title="Do góry strony" aria-label="Do góry strony"><i class="ti ti-home"></i></button>${c.t}</h2>
+    <div class="c" style="height:380px"></div>
+    <div class="rlg"><span><i style="background:#a8d8ea"></i>mżawka &lt; 0,5 mm/h</span><span><i style="background:#5e9fd8"></i>deszcz 0,5–4 mm/h</span>
+      <span><i style="background:#2f5fb3"></i>silny 4–10 mm/h</span><span><i style="background:#9a6fd1"></i>ulewa &gt; 10 mm/h</span></div>`;
+  box.appendChild(el);
+  const root = am5.Root.new(el.querySelector(".c")); chartRoots.push(root);
+  root.setThemes([am5themes_Animated.new(root), am5themes_NordDark.new(root), am5themes_Responsive.new(root)]);
+  root.locale = am5locales_pl_PL; root.numberFormatter.set("numberFormat", "#,###.#");
+  const chart = root.container.children.push(am5xy.XYChart.new(root, {
+    panX: true, panY: false, wheelX: "panX", wheelY: "zoomX", pinchZoomX: true, paddingLeft: 0, layout: root.verticalLayout,
+  }));
+  chart.set("cursor", am5xy.XYCursor.new(root, { behavior: "zoomX" })).lineY.set("visible", false);
+  const xAxis = chart.xAxes.push(am5xy.DateAxis.new(root, {
+    baseInterval: { timeUnit: "minute", count: 1 }, groupData: true, groupCount: 70, maxDeviation: 0,
+    groupIntervals: [{ timeUnit: "minute", count: 10 }, { timeUnit: "minute", count: 30 }, { timeUnit: "hour", count: 1 },
+      { timeUnit: "hour", count: 3 }, { timeUnit: "hour", count: 6 }, { timeUnit: "day", count: 1 },
+      { timeUnit: "week", count: 1 }, { timeUnit: "month", count: 1 }],
+    renderer: am5xy.AxisRendererX.new(root, { minGridDistance: 70, minorGridEnabled: true }),
+    tooltip: am5.Tooltip.new(root, {}), tooltipDateFormat: "d MMM, HH:mm",
+  }));
+  const yAxis = chart.yAxes.push(am5xy.ValueAxis.new(root, { min: 0, renderer: am5xy.AxisRendererY.new(root, {}) }));
+  const sideAxis = (label, color) => {
+    const a = chart.yAxes.push(am5xy.ValueAxis.new(root, { min: 0, renderer: am5xy.AxisRendererY.new(root, { opposite: true }) }));
+    a.get("renderer").grid.template.set("forceHidden", true);
+    a.get("renderer").labels.template.setAll({ fill: am5.color(color), fontSize: 11 });
+    a.children.unshift(am5.Label.new(root, { text: label, rotation: -90, y: am5.p50, centerX: am5.p50, fill: am5.color(color), fontSize: 11 }));
+    return a;
+  };
+  const y2 = sideAxis("suma mm", 0x88c0d0), y3 = sideAxis("mm/h", 0xd08770);
+  [xAxis, yAxis].forEach(a => a.get("renderer").grid.template.setAll({ strokeDasharray: [5, 5] }));
+
+  const cols = chart.series.push(am5xy.ColumnSeries.new(root, {
+    name: "Opad w przedziale", xAxis, yAxis, valueXField: "t", valueYField: "v", valueYGrouped: "sum",
+    tooltip: am5.Tooltip.new(root, { labelText: "Suma: [bold]{valueY.formatNumber('#.0')} mm[/]" }),
+  }));
+  cols.columns.template.setAll({ width: am5.percent(78), strokeOpacity: 0, cornerRadiusTL: 3, cornerRadiusTR: 3 });
+  const intervalHours = () => { const g = xAxis.getPrivate("groupInterval") || xAxis.getPrivate("baseInterval") || xAxis.get("baseInterval"); return GROUP_HOURS[g.timeUnit] * g.count; };
+  cols.columns.template.adapters.add("fill", (fill, t) => {   // kolor wg natężenia: suma ÷ długość przedziału
+    const mmh = (t.dataItem?.get("valueY") ?? 0) / intervalHours();
+    return am5.color(mmh < 0.5 ? 0xa8d8ea : mmh < 4 ? 0x5e9fd8 : mmh < 10 ? 0x2f5fb3 : 0x9a6fd1);
+  });
+  const rateS = chart.series.push(am5xy.LineSeries.new(root, {
+    name: "Natężenie chwilowe", xAxis, yAxis: y3, valueXField: "t", valueYField: "r", valueYGrouped: "high",
+    stroke: am5.color(0xd08770), fill: am5.color(0xd08770),
+    tooltip: am5.Tooltip.new(root, { labelText: "Natężenie (maks.): [bold]{valueY.formatNumber('#.0')} mm/h[/]" }),
+  }));
+  rateS.strokes.template.setAll({ strokeWidth: 1.5 }); rateS.fills.template.setAll({ visible: true, fillOpacity: 0.12 });
+  const cumS = chart.series.push(am5xy.StepLineSeries.new(root, {
+    name: "Suma narastająca", xAxis, yAxis: y2, valueXField: "t", valueYField: "c", valueYGrouped: "close",
+    stroke: am5.color(0x88c0d0),
+    tooltip: am5.Tooltip.new(root, { labelText: "Razem od początku zakresu: [bold]{valueY.formatNumber('#.0')} mm[/]" }),
+  }));
+  cumS.strokes.template.setAll({ strokeWidth: 1.5 });
+  const legend = chart.children.push(am5.Legend.new(root, { centerX: am5.p50, x: am5.p50, marginTop: 4 }));
+  legend.labels.template.set("fontSize", 12); legend.markers.template.setAll({ width: 12, height: 12 });
+  legend.data.setAll([cols, rateS, cumS]);
+  const sb = am5.Scrollbar.new(root, { orientation: "horizontal", height: 8, marginTop: 6 });
+  chart.set("scrollbarX", sb); chart.bottomAxesContainer.children.push(sb);
+  rainSeries = [cols, rateS, cumS];
+  const d = rainIncrements(rows); rainSeries.forEach(s => s.data.setAll(d));
 }
 
 const seriesData = (rows, key) => rows.map(r => ({ t: r.t * 1000, v: pick(r, key) })).filter(p => p.v != null);
@@ -748,6 +833,7 @@ async function refresh() {   // co 5 min: tylko dane, bez resetowania zoomu
     err(); await loadLatest();
     const rows = await loadRows();
     seriesList.forEach(({ series, key }) => series.data.setAll(seriesData(rows, key)));
+    if (rainSeries.length) { const d = rainIncrements(rows); rainSeries.forEach(s => s.data.setAll(d)); }
     updateWindRose(roseRange === range ? rows : await loadRows(roseRange));
   } catch (e) { err(e); }
 }
