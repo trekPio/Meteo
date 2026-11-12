@@ -47,27 +47,40 @@ def flatten_history(node, prefix=""):
     return rows
 
 
-all_months, total, errors = set(), 0, 0
+all_months, total, errors, stopped = set(), 0, 0, None
 for i in offsets:
     start = today - timedelta(days=i)
     cycle = "5min" if i < 89 else "30min" if i < 365 else "4hour"   # nazwy i okresy przechowywania wg API Ecowitt
-    try:
-        data = store.api("history", call_back=CALL_BACK, cycle_type=cycle,
-                         start_date=start.strftime("%Y-%m-%d 00:00:00"),
-                         end_date=start.strftime("%Y-%m-%d 23:59:59"))
+    data = None
+    for attempt in range(4):   # przy przekroczeniu limitu zapytań: odczekaj i ponów
+        try:
+            data = store.api("history", call_back=CALL_BACK, cycle_type=cycle,
+                             start_date=start.strftime("%Y-%m-%d 00:00:00"),
+                             end_date=start.strftime("%Y-%m-%d 23:59:59"))
+            break
+        except Exception as e:
+            if "upper limit" in str(e) and attempt < 3:
+                print(f"{start:%Y-%m-%d}: limit zapytań API – czekam {60 * (attempt + 1)} s", flush=True)
+                time.sleep(60 * (attempt + 1)); continue
+            errors += 1
+            print(f"{start:%Y-%m-%d}: BŁĄD {e}", flush=True)
+            if "upper limit" in str(e):
+                stopped = f"limit zapytań API Ecowitt wyczerpany – ostatni pobrany dzień: {start - timedelta(days=1):%Y-%m-%d}"
+            break
+    if stopped or errors > 20:
+        stopped = stopped or "zbyt wiele błędów"
+        break
+    if data is not None:
         rows = [{"t": t, **rec} for t, rec in flatten_history(data).items()]
         if rows:
             all_months.update(store.merge_rows(rows))
             total += len(rows)
         print(f"{start:%Y-%m-%d} [{cycle}]: {len(rows)} rekordów", flush=True)
-    except Exception as e:  # pojedynczy dzień nie powinien przerywać całości
-        errors += 1
-        print(f"{start:%Y-%m-%d}: BŁĄD {e}", flush=True)
-        if errors > 20:
-            sys.exit("Zbyt wiele błędów – przerywam.")
-    time.sleep(1.2)  # limit zapytań API
+    time.sleep(1.5)  # limit zapytań API
 
 store.rebuild_hourly(sorted(all_months))
 store.rebuild_index()
 store.rebuild_rain_norms()
 print(f"Gotowe: {total} rekordów, {len(all_months)} miesięcy, błędów: {errors}")
+if stopped:   # to, co pobrano, i tak zostanie zapisane (krok commit w workflow)
+    print(f"::warning::Przerwano: {stopped}. Uruchom ponownie później od kolejnego dnia.")
