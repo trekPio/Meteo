@@ -1,0 +1,47 @@
+name: Pobierz historię Ecowitt (zakres dat)
+
+on:
+  workflow_dispatch:
+    inputs:
+      date_from:
+        description: "Od (RRRR-MM-DD)"
+        required: true
+      date_to:
+        description: "Do (RRRR-MM-DD, włącznie)"
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fetch          # nie koliduje z cyklicznym pobieraniem
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Pobierz historię z zakresu dat
+        env:
+          ECOWITT_APP_KEY: ${{ secrets.ECOWITT_APP_KEY }}
+          ECOWITT_API_KEY: ${{ secrets.ECOWITT_API_KEY }}
+          ECOWITT_MAC: ${{ secrets.ECOWITT_MAC }}
+          DATE_FROM: ${{ inputs.date_from }}
+          DATE_TO: ${{ inputs.date_to }}
+        run: python3 scripts/backfill.py "$DATE_FROM" "$DATE_TO"
+
+      - name: Zapisz zmiany
+        run: |
+          git config user.name "meteo-bot"
+          git config user.email "meteo-bot@users.noreply.github.com"
+          git add data
+          git diff --cached --quiet && { echo "Bez zmian"; exit 0; }
+          git commit -m "historia: $DATE_FROM – $DATE_TO"
+          git pull --rebase
+          git push
+        env:
+          DATE_FROM: ${{ inputs.date_from }}
+          DATE_TO: ${{ inputs.date_to }}

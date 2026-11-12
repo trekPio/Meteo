@@ -3,7 +3,8 @@
 
 Ecowitt przechowuje dane 5-minutowe ok. 90 dni, a 30-minutowe ok. 365 dni,
 więc dla ostatnich 90 dni pobieramy co 5 min, dla starszych co 30 min.
-Użycie: python3 scripts/backfill.py [liczba_dni]   (domyślnie 365)
+Użycie: python3 scripts/backfill.py [liczba_dni]            (domyślnie 365)
+        python3 scripts/backfill.py RRRR-MM-DD RRRR-MM-DD    (zakres dat: od, do – włącznie)
 """
 import sys
 import time
@@ -12,8 +13,20 @@ from datetime import datetime, timedelta
 import store
 
 CALL_BACK = "outdoor,indoor,solar_and_uvi,rainfall,rainfall_piezo,wind,pressure"
-days = int(sys.argv[1]) if len(sys.argv) > 1 else 365
 today = datetime.now(store.TZ).replace(hour=0, minute=0, second=0, microsecond=0)
+if len(sys.argv) > 2:   # zakres dat
+    try:
+        d_from = datetime.strptime(sys.argv[1].strip(), "%Y-%m-%d").replace(tzinfo=store.TZ)
+        d_to = datetime.strptime(sys.argv[2].strip(), "%Y-%m-%d").replace(tzinfo=store.TZ)
+    except ValueError:
+        sys.exit("Błędny format daty – użyj RRRR-MM-DD, np. 2026-11-01")
+    if d_from > d_to:
+        d_from, d_to = d_to, d_from
+    d_to = min(d_to, today)
+    offsets = range((today - d_from).days, (today - d_to).days - 1, -1)
+else:
+    days = int(sys.argv[1]) if len(sys.argv) > 1 else 365
+    offsets = range(days, -1, -1)
 
 
 def flatten_history(node, prefix=""):
@@ -35,9 +48,9 @@ def flatten_history(node, prefix=""):
 
 
 all_months, total, errors = set(), 0, 0
-for i in range(days, -1, -1):
+for i in offsets:
     start = today - timedelta(days=i)
-    cycle = "5min" if i < 89 else "30min"
+    cycle = "5min" if i < 89 else "30min" if i < 365 else "240min"   # tyle przechowuje Ecowitt
     try:
         data = store.api("history", call_back=CALL_BACK, cycle_type=cycle,
                          start_date=start.strftime("%Y-%m-%d 00:00:00"),
