@@ -43,6 +43,10 @@
   .tchart { position:absolute; top:6px; right:8px; border:0; background:none; padding:2px; cursor:pointer; color:#ebcb8b; font-size:18px; line-height:1; opacity:.85; }
   .tchart:hover { opacity:1; transform:scale(1.1); }
   .chart { scroll-margin-top:12px; }
+  .chart h2 { display:flex; align-items:center; gap:8px; }
+  .chart .home { width:24px; height:24px; border-radius:7px; border:1px solid #3b4552; background:#222a33; display:inline-flex; align-items:center; justify-content:center;
+                 color:var(--muted); font-size:15px; cursor:pointer; padding:0; flex:none; }
+  .chart .home:hover { background:#2a323c; color:#cfd6de; }
   @keyframes chflash { 0% { box-shadow:0 0 0 2px #ebcb8b; } 100% { box-shadow:0 0 0 2px transparent; } }
   .chart.flash { animation:chflash 1.6s ease-out; }
   .gauge .wfoot { margin-top:auto; }   /* dolne wartości zawsze przy dolnej krawędzi */
@@ -349,6 +353,11 @@ function updateRainTile(v, norms) {
   }
 }
 
+// Domek przy wykresach: powrót do nagłówka strony
+document.addEventListener("click", (e) => {
+  if (e.target.closest(".chart .home")) document.querySelector("header.hdr").scrollIntoView({ behavior: "smooth", block: "start" });
+});
+
 function goToChart(key) {
   const el = document.getElementById("ch-" + key);
   if (!el) return;
@@ -494,7 +503,7 @@ function buildWindRose(rows) {
   const box = document.getElementById("rose"); box.innerHTML = "";
   const { data, n } = roseData(rows);
   const el = document.createElement("section"); el.className = "box chart";
-  el.innerHTML = `<div class="chead"><h2>Róża wiatrów (% czasu, ${n} pomiarów)</h2><div class="seg">${
+  el.innerHTML = `<div class="chead"><h2><button class="home" title="Do góry strony" aria-label="Do góry strony"><i class="ti ti-home"></i></button>Róża wiatrów (% czasu, ${n} pomiarów)</h2><div class="seg">${
     ROSE_RANGES.map(([d, l]) => `<button data-d="${d}" class="${d === roseRange ? "on" : ""}">${l}</button>`).join("")}</div></div>
     <div class="c" style="height:480px"></div>`;
   box.appendChild(el);
@@ -575,9 +584,9 @@ function buildCharts(rows) {
 
     const el = document.createElement("section"); el.className = "box chart"; el.id = "ch-" + c.s[0][0];
     el.innerHTML = c.nord
-      ? `<div class="chead"><h2>${c.t}</h2><div class="seg">${CURSOR_MODES.map(([m, l]) =>
+      ? `<div class="chead"><h2><button class="home" title="Do góry strony" aria-label="Do góry strony"><i class="ti ti-home"></i></button>${c.t}</h2><div class="seg">${CURSOR_MODES.map(([m, l]) =>
           `<button data-m="${m}" class="${m === cursorMode ? "on" : ""}">${l}</button>`).join("")}</div></div><div class="sel"></div><div class="c"></div>`
-      : `<h2>${c.t}</h2><div class="c"></div>`;
+      : `<h2><button class="home" title="Do góry strony" aria-label="Do góry strony"><i class="ti ti-home"></i></button>${c.t}</h2><div class="c"></div>`;
     box.appendChild(el);
     let root;
     if (c.nord) {   // styl "Data Grouping": Nord Dark + Responsive
