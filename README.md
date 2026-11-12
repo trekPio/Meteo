@@ -1,7 +1,7 @@
 # Moje meteo – strona stacji Ecowitt na GitHub Pages
 
 GitHub Actions co ~10 min pobiera dane z API Ecowitt i zapisuje je do `data/`.
-Statyczna strona `index.html` rysuje z nich wykresy (Chart.js). Bez serwera i bez PHP.
+Statyczna strona `index.html` rysuje z nich wykresy (amCharts 5). Bez serwera i bez PHP.
 
 ## Uruchomienie
 
@@ -21,7 +21,7 @@ Statyczna strona `index.html` rysuje z nich wykresy (Chart.js). Bez serwera i be
 - **Częstotliwość**: `cron` w `.github/workflows/fetch.yml`. Nie ustawiaj częściej niż co 10 min,
   bo GitHub Pages ma limit ok. 10 przebudowań strony na godzinę.
 - **Jednostki**: parametry `*_unitid` w `scripts/fetch.py`, np. `wind_speed_unitid: 7` to km/h.
-  Po zmianie popraw też jednostki w tablicy `CHARTS` w `index.html`.
+  Po zmianie popraw też jednostki w tablicach `GAUGES` i `CHARTS` w `index.html`.
 - **Czujniki**: skrypt zapisuje wszystko, co zwraca API. Żeby dodać wykres, np. dla czujnika `temp_and_humidity_ch1.temperature`,
   dopisz klucz do `K` i serię do `CHARTS` w `index.html`. Pełną listę kluczy masz w `data/latest.json`.
 
