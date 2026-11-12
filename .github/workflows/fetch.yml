@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Pobierz pomiar
         env:
@@ -34,6 +34,6 @@ jobs:
           if git diff --cached --quiet; then
             echo "Bez zmian"; exit 0
           fi
-          git commit -m "dane $(date -u +'%Y-%m-%d %H:%M')"
+          git commit -m "dane $(TZ=Europe/Warsaw date +"%Y-%m-%d %H:%M")"
           git pull --rebase
           git push

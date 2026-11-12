@@ -54,7 +54,8 @@ const K = {
   tin: ["indoor.temperature"], hin: ["indoor.humidity"],
   press: ["pressure.relative", "pressure.absolute"],
   wind: ["wind.wind_speed"], gust: ["wind.wind_gust"], dir: ["wind.wind_direction"],
-  rainDay: ["rainfall.daily", "rainfall_piezo.daily"], rainRate: ["rainfall.rain_rate", "rainfall_piezo.rain_rate"],
+  rainDay: ["rainfall.daily", "rainfall_piezo.daily"], rainWeek: ["rainfall.weekly", "rainfall_piezo.weekly"],
+  rainMonth: ["rainfall.monthly", "rainfall_piezo.monthly"], rainYear: ["rainfall.yearly", "rainfall_piezo.yearly"], rainRate: ["rainfall.rain_rate", "rainfall_piezo.rain_rate"],
   solar: ["solar_and_uvi.solar"], uvi: ["solar_and_uvi.uvi"],
 };
 const CHARTS = [
@@ -84,6 +85,7 @@ async function loadLatest() {
     ["Ciśnienie", fmt(pick(v, "press")), "hPa", ""],
     ["Wiatr", fmt(pick(v, "wind")), "m/s", "porywy " + fmt(pick(v, "gust")) + (dir != null ? " · " + DIRS[Math.round(dir / 22.5) % 16] : "")],
     ["Opad dziś", fmt(pick(v, "rainDay")), "mm", "teraz " + fmt(pick(v, "rainRate")) + " mm/h"],
+    ["Opad – sumy", fmt(pick(v, "rainMonth")), "mm", "tydzień " + fmt(pick(v, "rainWeek")) + " · rok " + fmt(pick(v, "rainYear"), 0) + " mm"],
     ["Słońce", fmt(pick(v, "solar"), 0), "W/m²", "UV " + fmt(pick(v, "uvi"))],
     ["W domu", fmt(pick(v, "tin")), "°C", "wilgotność " + fmt(pick(v, "hin"), 0) + " %"],
   ].filter(c => c[1] !== "–");
