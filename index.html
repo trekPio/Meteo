@@ -273,7 +273,7 @@ const RAIN_NORM_TXT = {
   event: "największe zdarzenie", "1_hour": "największy opad godzinowy", "24_hours": "największa suma dobowa",
   weekly: "średnia suma tygodniowa", monthly: "średnia suma miesięczna", yearly: "suma",
 };
-let rainTip = null, rainInfo = {};
+let rainTip = null, rainInfo = {}, rainPinned = false;
 
 function buildRainTile(box) {
   const el = document.createElement("section"); el.className = "box gauge raintile";
@@ -291,17 +291,27 @@ function buildRainTile(box) {
   </div>`;
   box.appendChild(el);
   const ls = el.querySelector("#rList");
-  ls.addEventListener("click", (e) => {
-    const k = e.target.closest(".rk"); closeRainTip(); if (!k) return;
+  // Dymek: najechanie pokazuje, zjechanie chowa; kliknięcie przypina (drugie kliknięcie / klik obok odpina)
+  const show = (k) => {
+    closeRainTip();
     const row = k.parentElement, info = rainInfo[k.dataset.k];
-    rainTip = document.createElement("div"); rainTip.className = "rtip";
+    rainTip = document.createElement("div"); rainTip.className = "rtip"; rainTip.dataset.k = k.dataset.k;
     rainTip.innerHTML = k.dataset.k === "state"
       ? `<b>Stan</b><br>Czy czujnik wykrywa opad w tej chwili: Pada albo Brak opadu.`
       : `<b>${info.label}</b><br>${info.desc}${info.bar ? `<span class="m">${info.bar}</span>` : ""}`;
     rainTip.style.top = (row.offsetTop + row.offsetHeight + 6) + "px";
-    ls.appendChild(rainTip); e.stopPropagation();
+    ls.appendChild(rainTip);
+  };
+  ls.querySelectorAll(".rk").forEach(k => {
+    k.addEventListener("mouseenter", () => { if (!rainPinned) show(k); });
+    k.addEventListener("mouseleave", () => { if (!rainPinned) closeRainTip(); });
+    k.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (rainPinned && rainTip && rainTip.dataset.k === k.dataset.k) { rainPinned = false; closeRainTip(); return; }
+      show(k); rainPinned = true;
+    });
   });
-  document.addEventListener("click", closeRainTip);
+  document.addEventListener("click", () => { rainPinned = false; closeRainTip(); });
 }
 function closeRainTip() { if (rainTip) { rainTip.remove(); rainTip = null; } }
 
