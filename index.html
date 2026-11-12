@@ -39,7 +39,12 @@
   main { max-width:1200px; margin:auto; padding:0 20px 40px; }
   .box { background:var(--card); border:1px solid var(--line); border-radius:12px; }
   .gauges { display:grid; grid-template-columns:repeat(auto-fill, minmax(210px, 1fr)); gap:12px; margin:12px 0; }
-  .gauge { padding:10px 10px 8px; display:flex; flex-direction:column; }
+  .gauge { padding:10px 10px 8px; display:flex; flex-direction:column; position:relative; }
+  .tchart { position:absolute; top:6px; right:8px; border:0; background:none; padding:2px; cursor:pointer; color:#ebcb8b; font-size:18px; line-height:1; opacity:.85; }
+  .tchart:hover { opacity:1; transform:scale(1.1); }
+  .chart { scroll-margin-top:12px; }
+  @keyframes chflash { 0% { box-shadow:0 0 0 2px #ebcb8b; } 100% { box-shadow:0 0 0 2px transparent; } }
+  .chart.flash { animation:chflash 1.6s ease-out; }
   .gauge .wfoot { margin-top:auto; }   /* dolne wartości zawsze przy dolnej krawędzi */
   .spark { height:18px; margin:auto 0 8px; padding-top:10px; box-sizing:content-box; }
   .spark + .wfoot { margin-top:0; }
@@ -243,7 +248,7 @@ const TILES = [["temp", "Temperatura", "°C", 1], ["hum", "Wilgotność", "%", 0
 function buildGauges() {
   const box = document.getElementById("gauges");
   for (const [key, title, unit] of TILES) {
-    const el = document.createElement("section"); el.className = "box gauge mtile";
+    const el = document.createElement("section"); el.className = "box gauge mtile"; el.dataset.chart = key;
     el.innerHTML = `<h2>${title}</h2>
       <div class="mrow"><svg id="ic-${key}" viewBox="0 0 120 220" class="mic" aria-hidden="true"></svg>
         <div class="vbox"><span class="wunit${key === "temp" ? " clk" : ""}" id="u-${key}"${key === "temp" ? ' title="Kliknij: °C / K"' : ""}>${unit}</span><i class="ti trend" id="tr-${key}"></i><span class="vval" id="v-${key}">–</span></div></div>
@@ -253,8 +258,15 @@ function buildGauges() {
         <div><div class="l">Maks · <span id="tmax-${key}">–</span></div><div class="v"><i class="ti ti-arrow-up"></i> <span id="max-${key}">–</span> <small class="u2-${key}">${unit}</small></div></div></div>`;
     box.appendChild(el);
   }
-  buildWindTile(box);
-  buildRainTile(box);
+  buildWindTile(box); box.lastElementChild.dataset.chart = "wind";
+  buildRainTile(box); box.lastElementChild.dataset.chart = "rainDay";
+  // Ikonka wykresu w prawym górnym rogu kafelka: przewija do odpowiedniego wykresu
+  box.querySelectorAll(".gauge[data-chart]").forEach(t => {
+    const b = document.createElement("button"); b.className = "tchart"; b.title = "Pokaż wykres";
+    b.innerHTML = '<i class="ti ti-activity" aria-hidden="true"></i>';
+    b.onclick = (e) => { e.stopPropagation(); goToChart(t.dataset.chart); };
+    t.appendChild(b);
+  });
   document.getElementById("u-temp").onclick = () => { tempUnit = tempUnit === "C" ? "K" : "C"; saveUnits(); redrawTiles(); };
   document.getElementById("u-wind").onclick = () => { windUnit = windUnit === "kmh" ? "ms" : "kmh"; saveUnits(); redrawTiles(); };
 }
@@ -335,6 +347,13 @@ function updateRainTile(v, norms) {
       ? `Pasek: wartość ÷ ${RAIN_NORM_TXT[nk]}${per} (${fmt(n)} mm) = ${Math.round(val / n * 100)}%${val > n ? " (powyżej normy pasek zostaje pełny)" : ""}.`
       : "Pasek: brak danych historycznych do porównania." };
   }
+}
+
+function goToChart(key) {
+  const el = document.getElementById("ch-" + key);
+  if (!el) return;
+  el.scrollIntoView({ behavior: "smooth", block: "start" });
+  el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash");
 }
 
 // ---------- Jednostki przełączane kliknięciem (zapamiętywane w przeglądarce) ----------
@@ -554,7 +573,7 @@ function buildCharts(rows) {
       .filter(([key]) => rows.some(r => pick(r, key) != null));
     if (!all.length) continue;
 
-    const el = document.createElement("section"); el.className = "box chart";
+    const el = document.createElement("section"); el.className = "box chart"; el.id = "ch-" + c.s[0][0];
     el.innerHTML = c.nord
       ? `<div class="chead"><h2>${c.t}</h2><div class="seg">${CURSOR_MODES.map(([m, l]) =>
           `<button data-m="${m}" class="${m === cursorMode ? "on" : ""}">${l}</button>`).join("")}</div></div><div class="sel"></div><div class="c"></div>`
