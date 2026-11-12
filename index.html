@@ -22,7 +22,7 @@
   #updated { color:var(--muted); font-size:13px; }
   main { max-width:1200px; margin:auto; padding:0 20px 40px; }
   .box { background:var(--card); border:1px solid var(--line); border-radius:12px; }
-  .gauges { display:grid; grid-template-columns:repeat(auto-fill, minmax(250px, 1fr)); gap:12px; margin:12px 0; }
+  .gauges { display:grid; grid-template-columns:repeat(auto-fill, minmax(210px, 1fr)); gap:12px; margin:12px 0; }
   .gauge { padding:10px 10px 4px; }
   .gauge h2, .chart h2 { font-size:13px; margin:0 4px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
   .gauge .g { height:190px; }
@@ -113,7 +113,7 @@ function makeGauge(el, [key, , unit, min, max, bands]) {
   const renderer = am5radar.AxisRendererCircular.new(root, { innerRadius: -18, strokeOpacity: 0, minGridDistance: 40 });
   renderer.grid.template.set("forceHidden", true);
   renderer.labels.template.setAll({ fontSize: 11, radius: 6 });
-  const axis = chart.xAxes.push(am5xy.ValueAxis.new(root, { min, max, strictMinMax: true, maxDeviation: 0, renderer }));
+  const axis = chart.xAxes.push(am5xy.ValueAxis.new(root, { min, max, strictMinMax: true, maxDeviation: 0, numberFormat: "#", renderer }));
   for (const [a, b, c] of bands) {
     const r = axis.createAxisRange(axis.makeDataItem({ value: a, endValue: b }));
     r.get("axisFill").setAll({ visible: true, fill: am5.color(c), fillOpacity: .85 });
@@ -131,7 +131,7 @@ function makeGauge(el, [key, , unit, min, max, bands]) {
 function makeCompass(el) {
   const root = newRoot(el);
   const chart = root.container.children.push(am5radar.RadarChart.new(root, {
-    panX: false, panY: false, startAngle: -90, endAngle: 270, innerRadius: -14,
+    panX: false, panY: false, startAngle: -90, endAngle: 270, innerRadius: -14, radius: am5.percent(78), y: -12,
   }));
   const renderer = am5radar.AxisRendererCircular.new(root, { innerRadius: -14, strokeOpacity: .4, strokeWidth: 14 });
   renderer.grid.template.set("forceHidden", true);
@@ -139,7 +139,7 @@ function makeCompass(el) {
   const axis = chart.xAxes.push(am5xy.ValueAxis.new(root, { min: 0, max: 360, strictMinMax: true, maxDeviation: 0, renderer }));
   ["N", "NE", "E", "SE", "S", "SW", "W", "NW"].forEach((t, i) => {
     const r = axis.createAxisRange(axis.makeDataItem({ value: i * 45 }));
-    r.get("label").setAll({ text: t, inside: true, radius: 22, fontSize: i % 2 ? 11 : 14, fontWeight: i % 2 ? "400" : "700" });
+    r.get("label").setAll({ forceHidden: false, text: t, inside: true, radius: 24, fontSize: i % 2 ? 11 : 14, fontWeight: i % 2 ? "400" : "700" });
     r.get("grid").setAll({ forceHidden: true });
   });
   const di = axis.makeDataItem({ value: 0 });
@@ -147,8 +147,8 @@ function makeCompass(el) {
   hand.hand.set("fill", am5.color("#e8684a"));
   di.set("bullet", am5xy.AxisBullet.new(root, { sprite: hand }));
   axis.createAxisRange(di);
-  const label = chart.radarContainer.children.push(am5.Label.new(root, {
-    centerX: am5.p50, centerY: am5.p50, y: 30, fontSize: 13, text: "–", background: am5.RoundedRectangle.new(root, { fill: am5.color(DARK ? "#1b2129" : "#ffffff"), fillOpacity: .85 }),
+  const label = root.container.children.push(am5.Label.new(root, {
+    x: am5.p50, centerX: am5.p50, y: am5.p100, centerY: am5.p100, fontSize: 13, text: "–",
   }));
   gauges.dir = { di, label, compass: true };
 }
@@ -170,7 +170,7 @@ function updateGauges(v) {
     if (g.compass) {
       const d = pick(v, "dir");
       if (d != null) g.di.animate({ key: "value", to: d, duration: 800, easing: am5.ease.out(am5.ease.cubic) });
-      g.label.set("text", `[bold]${fmt(pick(v, "wind"))} m/s[/]\nporywy ${fmt(pick(v, "gust"))}` + (d != null ? `\n${DIRS[Math.round(d / 22.5) % 16]} (${Math.round(d)}°)` : ""));
+      g.label.set("text", `[bold]${fmt(pick(v, "wind"))} m/s[/]  porywy ${fmt(pick(v, "gust"))}` + (d != null ? `  ·  ${DIRS[Math.round(d / 22.5) % 16]} ${Math.round(d)}°` : ""));
       continue;
     }
     const val = pick(v, key);
