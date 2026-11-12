@@ -234,7 +234,7 @@ function buildWindRose(box, rows) {
     name: "Wiatr", xAxis, yAxis, valueYField: "pct", categoryXField: "dir",
     tooltip: am5.Tooltip.new(root, { labelText: "[bold]{categoryX}[/]: {valueY.formatNumber('#.0')}% czasu\nśrednio {avg} m/s · maks. {max} m/s" }),
   }));
-  series.columns.template.setAll({ width: am5.percent(80), strokeOpacity: 0, fillOpacity: 1, cornerRadius: 10, tooltipText: undefined });
+  series.columns.template.setAll({ width: am5.percent(80), strokeOpacity: 0, fillOpacity: 1, cornerRadius: 10 });
   // Kolor dla każdego słupka z palety motywu
   series.columns.template.adapters.add("fill", (fill, target) => chart.get("colors").getIndex(series.columns.indexOf(target)));
   series.data.setAll(data);
