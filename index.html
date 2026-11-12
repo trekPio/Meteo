@@ -39,7 +39,10 @@
   main { max-width:1200px; margin:auto; padding:0 20px 40px; }
   .box { background:var(--card); border:1px solid var(--line); border-radius:12px; }
   .gauges { display:grid; grid-template-columns:repeat(auto-fill, minmax(210px, 1fr)); gap:12px; margin:12px 0; }
-  .gauge { padding:10px 10px 4px; }
+  .gauge { padding:10px 10px 8px; display:flex; flex-direction:column; }
+  .gauge .wfoot { margin-top:auto; }   /* dolne wartości zawsze przy dolnej krawędzi */
+  .spark { height:18px; margin:auto 0 8px; padding-top:10px; box-sizing:content-box; }
+  .spark + .wfoot { margin-top:0; }
   .gauge h2, .chart h2 { font-size:13px; margin:0 4px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
   .gauge .g { height:190px; }
   .mrow { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:4px; }
@@ -167,20 +170,33 @@ function newRoot(el) {
 // ---------- Kafelki: temperatura, wilgotność, ciśnienie (SVG) ----------
 const FG = "#e7ecf1", TILE_BG = "#1b2129", COLD_BELOW = 10;   // poniżej 10 °C szronek, od 10 °C słoneczko
 
+// Kolor temperatury: ≤ −10 głęboki niebieski → 0 jasny niebieski → 10 żółty … 30 żółty → 40 czerwony
+const hexRgb = (h) => [1, 3, 5].map(i => parseInt(h.substr(i, 2), 16));
+const mixHex = (a, b, f) => { const A = hexRgb(a), B = hexRgb(b); return "#" + A.map((x, i) => Math.round(x + (B[i] - x) * f).toString(16).padStart(2, "0")).join(""); };
+function tempColor(t) {
+  const D = "#3f7bd9", B = "#88c0d0", Y = "#ebcb8b", R = "#bf616a";
+  if (t <= -10) return D; if (t < 0) return mixHex(D, B, (t + 10) / 10); if (t === 0) return B;
+  if (t < 10) return mixHex(B, Y, t / 10); if (t <= 30) return Y; if (t < 40) return mixHex(Y, R, (t - 30) / 10); return R;
+}
+function flakeAt(cx, cy, R, w, c) {
+  const b = R * 0.33; let g = "";
+  for (let a = 0; a < 180; a += 60) g += `<g transform="rotate(${a} ${cx} ${cy})"><line x1="${cx}" y1="${cy - R}" x2="${cx}" y2="${cy + R}"/><path d="M${cx - b} ${cy - R + b * 0.4} l${b} ${b * 0.85} l${b} ${-b * 0.85} M${cx - b} ${cy + R - b * 0.4} l${b} ${-b * 0.85} l${b} ${b * 0.85}" fill="none"/></g>`;
+  return `<g stroke="${c}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${g}</g>`;
+}
 function iconThermo(t) {
-  const lvl = Math.max(0, Math.min(1, ((t ?? 0) + 20) / 60)), top = (160 - lvl * 116).toFixed(1);
+  t = t ?? 0;
+  const lvl = Math.max(0, Math.min(1, (t + 20) / 60)), top = (160 - lvl * 116).toFixed(1), col = tempColor(t);
   let sc = ""; for (let i = 0; i < 9; i++) { const y = 44 + i * 15, l = i % 4 === 0 ? 26 : 15; sc += `<line x1="80" y1="${y}" x2="${80 + l}" y2="${y}"/>`; }
-  const flake = (w, c) => { let g = ""; for (let a = 0; a < 180; a += 60) g += `<g transform="rotate(${a} 32 34)"><line x1="32" y1="10" x2="32" y2="58"/><path d="M24 13 l8 7 l8 -7 M24 55 l8 -7 l8 7" fill="none"/></g>`;
-    return `<g stroke="${c}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${g}</g>`; };
   const sun = (w, c) => { let g = `<circle cx="32" cy="34" r="11" fill="${c}" stroke="${c}" stroke-width="${w - 6}"/>`;
     for (let a = 0; a < 360; a += 45) { const [x1, y1] = polarC(a, 17, 32, 34), [x2, y2] = polarC(a, 25, 32, 34); g += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}"/>`; }
     return `<g stroke="${c}" stroke-width="${w}" stroke-linecap="round">${g}</g>`; };
-  const sym = (t ?? 0) < COLD_BELOW ? flake : sun;
+  let sym = t < COLD_BELOW ? flakeAt(32, 34, 24, 16, TILE_BG) + flakeAt(32, 34, 24, 6, col) : sun(16, TILE_BG) + sun(6, col);
+  if (t <= 0) sym += [[19, 70], [8, 90], [30, 90]].map(([x, y]) => flakeAt(x, y, 10.5, 8, TILE_BG) + flakeAt(x, y, 10.5, 3, col)).join("");   // mróz: trzy małe szronki
   return `<g fill="none" stroke="${FG}" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
     <path d="M41 157 V66"/><path d="M63 157 V40 a11 11 0 0 0 -16 -10"/><path d="M41 157 A28 28 0 1 0 63 157"/></g>
-    <rect x="47" y="${top}" width="10" height="${(186 - top).toFixed(1)}" rx="5" fill="${FG}"/>
-    <circle cx="52" cy="182" r="16" fill="${FG}"/>
-    <g stroke="${FG}" stroke-width="3.5" stroke-linecap="round">${sc}</g>${sym(16, TILE_BG)}${sym(6, FG)}`;
+    <rect x="47" y="${top}" width="10" height="${(186 - top).toFixed(1)}" rx="5" fill="${col}"/>
+    <circle cx="52" cy="182" r="16" fill="${col}"/>
+    <g stroke="${FG}" stroke-width="3.5" stroke-linecap="round">${sc}</g>${sym}`;
 }
 function iconDrop(h) {
   const d = "M60 40 C60 40 28 92 28 120 a32 32 0 0 0 64 0 C92 92 60 40 60 40Z", y = (152 - Math.max(0, Math.min(100, h ?? 0)) / 100 * 112).toFixed(1);
@@ -192,7 +208,7 @@ function iconDrop(h) {
 function iconBaro(p, trend) {
   let tk = ""; for (let a = -120; a <= 120; a += 40) { const [x1, y1] = polarC(a, 30, 60, 116), [x2, y2] = polarC(a, 23, 60, 116); tk += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}"/>`; }
   const ang = -120 + Math.max(0, Math.min(1, ((p ?? 960) - 960) / 90)) * 240;
-  const tr = trend > 0.5 ? `<path d="M60 56 l-9 12 h18 z" fill="#a3be8c"/>` : trend < -0.5 ? `<path d="M60 68 l-9 -12 h18 z" fill="#bf616a"/>` : "";
+  const tr = trend > 0.5 ? `<path d="M60 50 l-12 16 h24 z" fill="#a3be8c"/>` : trend < -0.5 ? `<path d="M60 66 l-12 -16 h24 z" fill="#a3be8c"/>` : `<circle cx="60" cy="58" r="6" fill="#a3be8c"/>`;
   return `<circle cx="60" cy="116" r="38" fill="none" stroke="${FG}" stroke-width="6"/>
     <g stroke="#8c98a6" stroke-width="3" stroke-linecap="round">${tk}</g>
     <line x1="60" y1="116" x2="60" y2="88" stroke="${FG}" stroke-width="5" stroke-linecap="round" transform="rotate(${ang.toFixed(1)} 60 116)"/>
@@ -224,6 +240,7 @@ function buildGauges() {
     el.innerHTML = `<h2>${title}</h2>
       <div class="mrow"><svg id="ic-${key}" viewBox="0 0 120 220" class="mic" aria-hidden="true"></svg>
         <div class="vbox"><span class="wunit${key === "temp" ? " clk" : ""}" id="u-${key}"${key === "temp" ? ' title="Kliknij: °C / K"' : ""}>${unit}</span><i class="ti trend" id="tr-${key}"></i><span class="vval" id="v-${key}">–</span></div></div>
+      <div class="spark" id="sp-${key}"></div>
       <div class="wfoot">
         <div><div class="l">Min · <span id="tmin-${key}">–</span></div><div class="v"><i class="ti ti-arrow-down"></i> <span id="min-${key}">–</span> <small class="u2-${key}">${unit}</small></div></div>
         <div><div class="l">Maks · <span id="tmax-${key}">–</span></div><div class="v"><i class="ti ti-arrow-up"></i> <span id="max-${key}">–</span> <small class="u2-${key}">${unit}</small></div></div></div>`;
@@ -311,6 +328,15 @@ const redrawTiles = () => { if (lastTiles) { updateGauges(...lastTiles.g); updat
 const tConv = (c) => c == null ? null : tempUnit === "K" ? c + 273.15 : c;
 const tLabel = () => tempUnit === "K" ? "K" : "°C";
 
+// Linia trendu dnia (od północy): cienka, rozciągnięta na szerokość kafelka
+function drawSpark(id, data, col) {
+  const el = document.getElementById(id); if (!el) return;
+  if (data.length < 2) { el.innerHTML = ""; return; }
+  const w = 200, h = 18, mn = Math.min(...data), mx = Math.max(...data), r = mx - mn || 1;
+  const d = data.map((v, i) => (i ? "L" : "M") + (i / (data.length - 1) * w).toFixed(1) + " " + (h - 2 - (v - mn) / r * (h - 4)).toFixed(1)).join(" ");
+  el.innerHTML = `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" width="100%" height="100%"><path d="${d} L${w} ${h} L0 ${h}Z" fill="${col}" opacity=".08"/><path d="${d}" fill="none" stroke="${col}" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg>`;
+}
+
 function updateGauges(v, rows = []) {
   const hm = (t) => new Date(t * 1000).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" });
   const f = (x, d) => fmt(x, d).replace("-", "−");
@@ -329,6 +355,8 @@ function updateGauges(v, rows = []) {
   }
   for (const [key] of TILES) setTrend(key, rows, pick(v, key));
   setTrend("wind", rows, pick(v, "wind"));
+  const SPARK_COL = { temp: "#d08770", hum: "#5e81ac", press: "#a3be8c" };
+  for (const [key] of TILES) drawSpark("sp-" + key, rows.map(r => pick(r, key)).filter(x => x != null), SPARK_COL[key]);
   document.getElementById("ic-temp").innerHTML = iconThermo(pick(v, "temp"));
   document.getElementById("ic-hum").innerHTML = iconDrop(pick(v, "hum"));
   // tendencja ciśnienia: zmiana względem pomiaru sprzed ~3 h
