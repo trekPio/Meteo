@@ -9,6 +9,7 @@
 <script src="https://cdn.amcharts.com/lib/5/radar.js"></script>
 <script src="https://cdn.amcharts.com/lib/5/themes/Animated.js"></script>
 <script src="https://cdn.amcharts.com/lib/5/themes/Dark.js"></script>
+<script src="https://cdn.amcharts.com/lib/5/themes/NordDark.js"></script>
 <script src="https://cdn.amcharts.com/lib/5/locales/pl_PL.js"></script>
 <style>
   :root { --bg:#f4f6f8; --card:#fff; --fg:#1d2733; --muted:#6b7785; --line:#e3e7ec; --acc:#2f7fd8; }
@@ -194,20 +195,18 @@ function updateCards(v) {
 }
 
 
-// ---------- Róża wiatrów (radialny histogram) ----------
-const ROSE_CLASSES = [[0, 1, "< 1 m/s", "#9ecae1"], [1, 3, "1–3 m/s", "#4292c6"], [3, 5, "3–5 m/s", "#41ab5d"],
-                      [5, 8, "5–8 m/s", "#fd8d3c"], [8, 1e9, "> 8 m/s", "#d7301f"]];
-let rose = null;   // {series: [], xAxis}
+// ---------- Róża wiatrów (radialny histogram, motyw Nord Dark) ----------
+let rose = null;   // {series, xAxis}
 
 function roseData(rows) {
-  const data = DIRS.map(d => ({ dir: d })); let n = 0;
+  const data = DIRS.map(d => ({ dir: d, n: 0, sum: 0, max: 0 })); let n = 0;
   for (const r of rows) {
     const d = pick(r, "dir"), w = pick(r, "wind");
     if (d == null || w == null) continue;
-    const i = Math.round(d / 22.5) % 16, c = ROSE_CLASSES.findIndex(([a, b]) => w >= a && w < b);
-    data[i]["c" + c] = (data[i]["c" + c] || 0) + 1; n++;
+    const o = data[Math.round(d / 22.5) % 16];
+    o.n++; o.sum += w; o.max = Math.max(o.max, pick(r, "gust") ?? w); n++;
   }
-  if (n) data.forEach(o => ROSE_CLASSES.forEach((_, c) => o["c" + c] = +(((o["c" + c] || 0) / n) * 100).toFixed(2)));
+  data.forEach(o => { o.pct = n ? +(o.n / n * 100).toFixed(1) : 0; o.avg = o.n ? +(o.sum / o.n).toFixed(1) : 0; o.max = +o.max.toFixed(1); });
   return { data, n };
 }
 
@@ -215,42 +214,38 @@ function buildWindRose(box, rows) {
   const { data, n } = roseData(rows);
   if (!n) return;
   const el = document.createElement("section"); el.className = "box chart";
-  el.innerHTML = `<h2>Róża wiatrów (% czasu, ${n} pomiarów)</h2><div class="c" style="height:460px"></div>`; box.appendChild(el);
-  const root = newRoot(el.querySelector(".c")); chartRoots.push(root);
+  el.innerHTML = `<h2>Róża wiatrów (% czasu, ${n} pomiarów)</h2><div class="c" style="height:480px"></div>`; box.appendChild(el);
+  const root = am5.Root.new(el.querySelector(".c")); chartRoots.push(root);
+  root.setThemes([am5themes_Animated.new(root), am5themes_NordDark.new(root)]);
+  root.locale = am5locales_pl_PL;
   // N na środku górnego sektora: obrót o pół sektora (360/16/2 = 11,25°)
   const chart = root.container.children.push(am5radar.RadarChart.new(root, {
-    panX: false, panY: false, startAngle: -101.25, endAngle: 258.75, radius: am5.percent(85), innerRadius: am5.percent(6),
-    layout: root.horizontalLayout,
+    panX: false, panY: false, startAngle: -101.25, endAngle: 258.75, radius: am5.percent(88), innerRadius: am5.percent(35),
   }));
   const xr = am5radar.AxisRendererCircular.new(root, { minGridDistance: 10 });
-  xr.labels.template.setAll({ radius: 8, fontSize: 12 });
-  const xAxis = chart.xAxes.push(am5xy.CategoryAxis.new(root, { categoryField: "dir", renderer: xr, tooltip: am5.Tooltip.new(root, {}) }));
+  xr.labels.template.setAll({ radius: 10, fontSize: 13, textType: "adjusted" });
+  xr.grid.template.set("forceHidden", true);
+  const xAxis = chart.xAxes.push(am5xy.CategoryAxis.new(root, { categoryField: "dir", renderer: xr }));
   xAxis.data.setAll(data);
   const yr = am5radar.AxisRendererRadial.new(root, {});
   yr.labels.template.setAll({ fontSize: 10, centerX: am5.p50 });
-  const yAxis = chart.yAxes.push(am5xy.ValueAxis.new(root, { min: 0, numberFormat: "#.#'%'", renderer: yr }));
-  const series = ROSE_CLASSES.map(([, , name, color], c) => {
-    const s = chart.series.push(am5radar.RadarColumnSeries.new(root, {
-      name, xAxis, yAxis, stacked: true, valueYField: "c" + c, categoryXField: "dir", fill: am5.color(color), stroke: am5.color(color),
-      tooltip: am5.Tooltip.new(root, { labelText: "{categoryX}, {name}: [bold]{valueY.formatNumber('#.0')}%[/]" }),
-    }));
-    s.columns.template.setAll({ width: am5.percent(92), strokeOpacity: 0, fillOpacity: .9 });
-    s.data.setAll(data);
-    return s;
-  });
-  chart.set("cursor", am5radar.RadarCursor.new(root, { behavior: "none" }));
-  const legend = root.container.children.push(am5.Legend.new(root, {
-    layout: root.verticalLayout, x: am5.p100, centerX: am5.p100, y: am5.p50, centerY: am5.p50,
+  const yAxis = chart.yAxes.push(am5xy.ValueAxis.new(root, { min: 0, numberFormat: "#'%'", renderer: yr }));
+  const series = chart.series.push(am5radar.RadarColumnSeries.new(root, {
+    name: "Wiatr", xAxis, yAxis, valueYField: "pct", categoryXField: "dir",
+    tooltip: am5.Tooltip.new(root, { labelText: "[bold]{categoryX}[/]: {valueY.formatNumber('#.0')}% czasu\nśrednio {avg} m/s · maks. {max} m/s" }),
   }));
-  legend.labels.template.set("fontSize", 12); legend.markers.template.setAll({ width: 12, height: 12 });
-  legend.data.setAll(series);
+  series.columns.template.setAll({ width: am5.percent(80), strokeOpacity: 0, fillOpacity: 1, cornerRadius: 10, tooltipText: undefined });
+  // Kolor dla każdego słupka z palety motywu
+  series.columns.template.adapters.add("fill", (fill, target) => chart.get("colors").getIndex(series.columns.indexOf(target)));
+  series.data.setAll(data);
+  series.appear(800); chart.appear(800, 100);
   rose = { series, xAxis };
 }
 
 function updateWindRose(rows) {
   if (!rose) return;
   const { data } = roseData(rows);
-  rose.xAxis.data.setAll(data); rose.series.forEach(s => s.data.setAll(data));
+  rose.xAxis.data.setAll(data); rose.series.data.setAll(data);
 }
 
 // ---------- Wykresy ----------
