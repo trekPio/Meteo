@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Podgląd: wykres opadów (słupkowy)</title>
+<script src="https://cdn.amcharts.com/lib/5/index.js"></script>
+<script src="https://cdn.amcharts.com/lib/5/xy.js"></script>
+<script src="https://cdn.amcharts.com/lib/5/themes/Animated.js"></script>
+<script src="https://cdn.amcharts.com/lib/5/themes/NordDark.js"></script>
+<script src="https://cdn.amcharts.com/lib/5/locales/pl_PL.js"></script>
+<style>
+  body { margin:0; background:#12161b; color:#e7ecf1; font:15px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width:1160px; margin:20px auto; padding:0 20px; }
+  .note { color:#8c98a6; font-size:13px; margin:0 0 12px; }
+  .box { background:#1b2129; border:1px solid #2a323c; border-radius:12px; padding:12px 10px 8px; }
+  .hd { display:flex; justify-content:space-between; align-items:center; gap:8px; margin:0 4px 8px; flex-wrap:wrap; }
+  .hd h2 { margin:0; font-size:13px; color:#8c98a6; letter-spacing:.04em; font-weight:600; }
+  .seg { display:flex; gap:4px; }
+  .seg button { border:1px solid #2a323c; background:transparent; color:#8c98a6; padding:3px 10px; border-radius:6px; font:inherit; font-size:12px; cursor:pointer; }
+  .seg button.on { background:#5aa2f0; border-color:#5aa2f0; color:#fff; }
+  #chartdiv { height:420px; }
+  .lg { display:flex; gap:14px; flex-wrap:wrap; margin:6px 4px 0; font-size:12px; color:#8c98a6; }
+  .lg i { display:inline-block; width:10px; height:10px; border-radius:2px; vertical-align:-1px; margin-right:4px; }
+</style>
+</head>
+<body>
+<main>
+  <p class="note">Strona testowa – podgląd nowego wykresu opadów na prawdziwych danych. Główna strona: <a href="../" style="color:#88c0d0">trekpio.github.io/Meteo</a></p>
+  <section class="box">
+    <div class="hd"><h2>OPAD (MM)</h2><div class="seg" id="rng"></div></div>
+    <div id="chartdiv"></div>
+    <div class="lg">
+      <span><i style="background:#a8d8ea"></i>mżawka &lt; 0,5 mm/h</span>
+      <span><i style="background:#5e9fd8"></i>deszcz 0,5–4 mm/h</span>
+      <span><i style="background:#2f5fb3"></i>silny 4–10 mm/h</span>
+      <span><i style="background:#9a6fd1"></i>ulewa &gt; 10 mm/h</span>
+    </div>
+  </section>
+</main>
+<script>
+const RAW = "https://raw.githubusercontent.com/trekPio/Meteo/main/";
+const get = async (p) => { let r = await fetch(RAW + p + "?v=" + Date.now()).catch(() => null);
+  if (!r || !r.ok) r = await fetch("../" + p + "?v=" + Date.now()); if (!r.ok) throw new Error(p); return r.json(); };
+const pick = (o, ks) => { for (const k of ks) if (o[k] != null) return o[k]; return null; };
+const DAILY = ["rainfall_piezo.daily", "rainfall.daily"], RATE = ["rainfall_piezo.rain_rate", "rainfall.rain_rate"];
+const HOURS = { minute: 1 / 60, hour: 1, day: 24, week: 168, month: 720, year: 8760 };
+
+async function loadRows(days) {
+  const idx = await get("data/index.json"), from = Date.now() / 1000 - days * 86400;
+  if (days > 30) {
+    const fm = new Date(from * 1000).toISOString().slice(0, 7);
+    return (await Promise.all((idx.months || []).filter(m => m >= fm).map(m => get(`data/hourly/${m}.json`).catch(() => [])))).flat()
+      .filter(r => r.t >= from).sort((a, b) => a.t - b.t);
+  }
+  const fd = new Date((from - 86400) * 1000).toISOString().slice(0, 10);
+  return (await Promise.all(idx.days.filter(d => d >= fd).map(d => get(`data/days/${d}.json`).catch(() => [])))).flat()
+    .filter(r => r.t >= from).sort((a, b) => a.t - b.t);
+}
+
+// Przyrosty opadu z licznika dziennego (zeruje się o północy) + suma narastająca od początku zakresu
+function toIncrements(rows) {
+  const out = []; let prev = null, prevDay = null, cum = 0;
+  for (const r of rows) {
+    const d = pick(r, DAILY); if (d == null) continue;
+    const day = new Date(r.t * 1000).toLocaleDateString("sv-SE", { timeZone: "Europe/Warsaw" });
+    let inc = 0;
+    if (prev != null) inc = day !== prevDay || d < prev ? d : d - prev;   // nowy dzień: licznik od zera
+    inc = Math.max(0, +inc.toFixed(2)); cum += inc;
+    out.push({ t: r.t * 1000, v: inc, r: pick(r, RATE) ?? 0, c: +cum.toFixed(1) });
+    prev = d; prevDay = day;
+  }
+  return out;
+}
+
+const root = am5.Root.new("chartdiv");
+root.setThemes([am5themes_Animated.new(root), am5themes_NordDark.new(root)]);
+root.locale = am5locales_pl_PL;
+root.numberFormatter.set("numberFormat", "#,###.#");
+
+const chart = root.container.children.push(am5xy.XYChart.new(root, {
+  panX: true, panY: false, wheelX: "panX", wheelY: "zoomX", pinchZoomX: true, paddingLeft: 0, layout: root.verticalLayout,
+}));
+chart.set("cursor", am5xy.XYCursor.new(root, { behavior: "zoomX" })).lineY.set("visible", false);
+
+const xAxis = chart.xAxes.push(am5xy.DateAxis.new(root, {
+  baseInterval: { timeUnit: "minute", count: 1 }, groupData: true, groupCount: 70, maxDeviation: 0,
+  groupIntervals: [{ timeUnit: "minute", count: 10 }, { timeUnit: "minute", count: 30 }, { timeUnit: "hour", count: 1 },
+    { timeUnit: "hour", count: 3 }, { timeUnit: "hour", count: 6 }, { timeUnit: "day", count: 1 },
+    { timeUnit: "week", count: 1 }, { timeUnit: "month", count: 1 }],
+  renderer: am5xy.AxisRendererX.new(root, { minGridDistance: 70, minorGridEnabled: true }),
+  tooltip: am5.Tooltip.new(root, {}), tooltipDateFormat: "d MMM, HH:mm",
+}));
+const yAxis = chart.yAxes.push(am5xy.ValueAxis.new(root, { min: 0, renderer: am5xy.AxisRendererY.new(root, {}) }));
+const y2 = chart.yAxes.push(am5xy.ValueAxis.new(root, { min: 0, renderer: am5xy.AxisRendererY.new(root, { opposite: true }) }));
+y2.get("renderer").grid.template.set("forceHidden", true);
+[xAxis, yAxis].forEach(a => a.get("renderer").grid.template.setAll({ strokeDasharray: [5, 5] }));
+
+// 1) słupki: suma opadu w przedziale (grupowanie amCharts sumuje przyrosty)
+const cols = chart.series.push(am5xy.ColumnSeries.new(root, {
+  name: "Opad w przedziale", xAxis, yAxis, valueXField: "t", valueYField: "v", valueYGrouped: "sum",
+  tooltip: am5.Tooltip.new(root, { labelText: "Suma: [bold]{valueY.formatNumber('#.0')} mm[/]" }),
+}));
+cols.columns.template.setAll({ width: am5.percent(78), strokeOpacity: 0, cornerRadiusTL: 3, cornerRadiusTR: 3 });
+// 2) kolor wg natężenia: suma ÷ długość przedziału = mm/h
+const intervalHours = () => { const g = xAxis.get("groupInterval") || xAxis.get("baseInterval"); return HOURS[g.timeUnit] * g.count; };
+cols.columns.template.adapters.add("fill", (fill, t) => {
+  const mmh = (t.dataItem?.get("valueY") ?? 0) / intervalHours();
+  return am5.color(mmh < 0.5 ? 0xa8d8ea : mmh < 4 ? 0x5e9fd8 : mmh < 10 ? 0x2f5fb3 : 0x9a6fd1);
+});
+// 4) maks. natężenie w przedziale (seria tylko do dymka)
+const rateS = chart.series.push(am5xy.LineSeries.new(root, {
+  name: "Maks. natężenie", xAxis, yAxis: y2, valueXField: "t", valueYField: "r", valueYGrouped: "high",
+  tooltip: am5.Tooltip.new(root, { labelText: "Maks. natężenie: [bold]{valueY.formatNumber('#.0')} mm/h[/]" }),
+}));
+rateS.strokes.template.set("forceHidden", true);
+// 3) suma narastająca od początku zakresu (prawa oś)
+const cumS = chart.series.push(am5xy.StepLineSeries.new(root, {
+  name: "Suma narastająca", xAxis, yAxis: y2, valueXField: "t", valueYField: "c", valueYGrouped: "close",
+  stroke: am5.color(0x88c0d0),
+  tooltip: am5.Tooltip.new(root, { labelText: "Razem od początku zakresu: [bold]{valueY.formatNumber('#.0')} mm[/]" }),
+}));
+cumS.strokes.template.setAll({ strokeWidth: 1.5, strokeDasharray: [4, 3] });
+
+const legend = chart.children.push(am5.Legend.new(root, { centerX: am5.p50, x: am5.p50 }));
+legend.data.setAll([cols, cumS]);
+chart.set("scrollbarX", am5.Scrollbar.new(root, { orientation: "horizontal", height: 8 }));
+
+async function show(days) {
+  const d = toIncrements(await loadRows(days));
+  cols.data.setAll(d); rateS.data.setAll(d); cumS.data.setAll(d);
+}
+const rng = document.getElementById("rng");
+[[1, "24 h"], [3, "3 dni"], [7, "7 dni"], [30, "30 dni"], [365, "Rok"]].forEach(([d, l]) => {
+  const b = document.createElement("button"); b.textContent = l; if (d === 30) b.className = "on";
+  b.onclick = () => { [...rng.children].forEach(x => x.classList.toggle("on", x === b)); show(d); };
+  rng.appendChild(b);
+});
+show(30);
+</script>
+</body>
+</html>
