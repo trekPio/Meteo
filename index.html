@@ -32,6 +32,14 @@
   .gauge { padding:10px 10px 4px; }
   .gauge h2, .chart h2 { font-size:13px; margin:0 4px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
   .gauge .g { height:190px; }
+  .mrow { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:4px; }
+  .mic { width:66px; height:121px; flex:none; }
+  .vbox { position:relative; width:104px; height:84px; border:1.5px solid #3b4552; border-radius:14px; background:#222a33;
+          display:flex; align-items:center; justify-content:center; margin-right:16px; flex:none; }
+  .vval { font-size:34px; line-height:1; font-variant-numeric:tabular-nums; }
+  .mm { display:grid; grid-template-columns:1fr 1fr; margin-top:8px; font-size:12px; color:var(--muted); text-align:center; }
+  .mm b { display:block; font-size:17px; font-weight:500; color:var(--fg); }
+  .mm b.cmin { color:#88c0d0; } .mm b.cmax { color:#d08770; }
   .windtile { grid-column:span 2; }
   @media (max-width:520px) { .windtile { grid-column:auto; } }
   .wrow { display:flex; align-items:center; justify-content:space-around; gap:12px; }
@@ -89,72 +97,77 @@ const K = {
   rainYear: ["rainfall.yearly", "rainfall_piezo.yearly"],
   solar: ["solar_and_uvi.solar"], uvi: ["solar_and_uvi.uvi"],
 };
-// Tarcze: [klucz, tytuł, jednostka, min, max, przedziały kolorów [od, do, kolor]]
-const GAUGES = [
-  ["temp", "Temperatura", "°C", -20, 40, [[-20, 0, "#5b8ff9"], [0, 15, "#5ad8a6"], [15, 25, "#f6bd16"], [25, 40, "#e8684a"]]],
-  ["hum", "Wilgotność", "%", 0, 100, [[0, 30, "#f6bd16"], [30, 70, "#5ad8a6"], [70, 100, "#5b8ff9"]]],
-  ["press", "Ciśnienie", "hPa", 960, 1050, [[960, 1000, "#5b8ff9"], [1000, 1025, "#5ad8a6"], [1025, 1050, "#f6bd16"]]],
-];
-// Wykresy: seria = [klucz, nazwa, kolor, typ?]; s2 = seria na prawej osi
-const CHARTS = [
-  { t: "Temperatura (°C)", nord: true, s: [["temp", "Temperatura", "#e8684a"], ["feels", "Odczuwalna", "#f6bd16"], ["dew", "Punkt rosy", "#29a3a3"]] },
-  { t: "Wilgotność (%)", s: [["hum", "Na zewnątrz", "#5b8ff9"], ["hin", "Wewnątrz", "#9270ca"]] },
-  { t: "Ciśnienie (hPa)", s: [["press", "Ciśnienie", "#8c98a6"]] },
-  { t: "Wiatr (m/s)", s: [["wind", "Prędkość", "#4caf50"], ["gust", "Porywy", "#a5d6a7"]] },
-  { t: "Opad (mm)", s: [["rainDay", "Suma dzienna", "#5b8ff9", "step"], ["rainRate", "Intensywność mm/h", "#90caf9"]] },
-  { t: "Słońce (W/m²) i UV", s: [["solar", "Promieniowanie", "#f6bd16"]], s2: [["uvi", "UV", "#e8684a"]] },
-];
-const DIRS = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
-const DARK = true;   // cała strona w ciemnym motywie
+// ---------- Kafelki: temperatura, wilgotność, ciśnienie (SVG) ----------
+const FG = "#e7ecf1", TILE_BG = "#1b2129", COLD_BELOW = 10;   // poniżej 10 °C szronek, od 10 °C słoneczko
 
-// ---------- Pomocnicze ----------
-const pick = (o, name) => { for (const k of K[name]) if (o[k] != null) return o[k]; return null; };
-const fmt = (v, d = 1) => v == null ? "–" : v.toLocaleString("pl-PL", { maximumFractionDigits: d, minimumFractionDigits: d });
-const get = async (p) => { const r = await fetch(p + "?v=" + Date.now()); if (!r.ok) throw new Error(p + ": " + r.status); return r.json(); };
-const err = (e) => document.getElementById("err").textContent = e ? "Nie udało się wczytać danych: " + e.message : "";
-
-function newRoot(el) {
-  const root = am5.Root.new(el);
-  root.setThemes([am5themes_Animated.new(root), ...(DARK ? [am5themes_Dark.new(root)] : [])]);
-  root.locale = am5locales_pl_PL;
-  root.numberFormatter.set("numberFormat", "#,###.#");
-  return root;
+function iconThermo(t) {
+  const lvl = Math.max(0, Math.min(1, ((t ?? 0) + 20) / 60)), top = (160 - lvl * 116).toFixed(1);
+  let sc = ""; for (let i = 0; i < 9; i++) { const y = 44 + i * 15, l = i % 4 === 0 ? 26 : 15; sc += `<line x1="80" y1="${y}" x2="${80 + l}" y2="${y}"/>`; }
+  const flake = (w, c) => { let g = ""; for (let a = 0; a < 180; a += 60) g += `<g transform="rotate(${a} 32 34)"><line x1="32" y1="10" x2="32" y2="58"/><path d="M24 13 l8 7 l8 -7 M24 55 l8 -7 l8 7" fill="none"/></g>`;
+    return `<g stroke="${c}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${g}</g>`; };
+  const sun = (w, c) => { let g = `<circle cx="32" cy="34" r="11" fill="${c}" stroke="${c}" stroke-width="${w - 6}"/>`;
+    for (let a = 0; a < 360; a += 45) { const [x1, y1] = polarC(a, 17, 32, 34), [x2, y2] = polarC(a, 25, 32, 34); g += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}"/>`; }
+    return `<g stroke="${c}" stroke-width="${w}" stroke-linecap="round">${g}</g>`; };
+  const sym = (t ?? 0) < COLD_BELOW ? flake : sun;
+  return `<g fill="none" stroke="${FG}" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M41 157 V66"/><path d="M63 157 V40 a11 11 0 0 0 -16 -10"/><path d="M41 157 A28 28 0 1 0 63 157"/></g>
+    <rect x="47" y="${top}" width="10" height="${(186 - top).toFixed(1)}" rx="5" fill="${FG}"/>
+    <circle cx="52" cy="182" r="16" fill="${FG}"/>
+    <g stroke="${FG}" stroke-width="3.5" stroke-linecap="round">${sc}</g>${sym(16, TILE_BG)}${sym(6, FG)}`;
 }
-
-// ---------- Tarcze ----------
-const gauges = {};   // klucz -> {hand, label, unit}
-
-function makeGauge(el, [key, , unit, min, max, bands]) {
-  const root = newRoot(el);
-  const chart = root.container.children.push(am5radar.RadarChart.new(root, {
-    panX: false, panY: false, startAngle: 160, endAngle: 380, innerRadius: -18,
-  }));
-  const renderer = am5radar.AxisRendererCircular.new(root, { innerRadius: -18, strokeOpacity: 0, minGridDistance: 40 });
-  renderer.grid.template.set("forceHidden", true);
-  renderer.labels.template.setAll({ fontSize: 11, radius: 6 });
-  const axis = chart.xAxes.push(am5xy.ValueAxis.new(root, { min, max, strictMinMax: true, maxDeviation: 0, numberFormat: "#", renderer }));
-  for (const [a, b, c] of bands) {
-    const r = axis.createAxisRange(axis.makeDataItem({ value: a, endValue: b }));
-    r.get("axisFill").setAll({ visible: true, fill: am5.color(c), fillOpacity: .85 });
-  }
-  const di = axis.makeDataItem({ value: min });
-  const hand = am5radar.ClockHand.new(root, { radius: am5.percent(92), bottomWidth: 8, pinRadius: 6 });
-  di.set("bullet", am5xy.AxisBullet.new(root, { sprite: hand }));
-  axis.createAxisRange(di);
-  const label = chart.radarContainer.children.push(am5.Label.new(root, {
-    centerX: am5.p50, centerY: am5.p50, y: 46, fontSize: 22, fontWeight: "600", text: "–",
-  }));
-  gauges[key] = { di, label, unit, min, max };
+function iconDrop(h) {
+  const d = "M60 40 C60 40 28 92 28 120 a32 32 0 0 0 64 0 C92 92 60 40 60 40Z", y = (152 - Math.max(0, Math.min(100, h ?? 0)) / 100 * 112).toFixed(1);
+  return `<defs><clipPath id="dropClip"><path d="${d}"/></clipPath></defs>
+    <rect x="0" y="${y}" width="120" height="220" fill="#5e81ac" clip-path="url(#dropClip)"/>
+    <path d="${d}" fill="none" stroke="${FG}" stroke-width="6" stroke-linejoin="round"/>
+    <path d="M44 124 a17 17 0 0 0 12 16" fill="none" stroke="${FG}" stroke-width="4" stroke-linecap="round"/>`;
 }
+function iconBaro(p, trend) {
+  let tk = ""; for (let a = -120; a <= 120; a += 40) { const [x1, y1] = polarC(a, 30, 60, 116), [x2, y2] = polarC(a, 23, 60, 116); tk += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}"/>`; }
+  const ang = -120 + Math.max(0, Math.min(1, ((p ?? 960) - 960) / 90)) * 240;
+  const tr = trend > 0.5 ? `<path d="M60 56 l-9 12 h18 z" fill="#a3be8c"/>` : trend < -0.5 ? `<path d="M60 68 l-9 -12 h18 z" fill="#bf616a"/>` : "";
+  return `<circle cx="60" cy="116" r="38" fill="none" stroke="${FG}" stroke-width="6"/>
+    <g stroke="#8c98a6" stroke-width="3" stroke-linecap="round">${tk}</g>
+    <line x1="60" y1="116" x2="60" y2="88" stroke="${FG}" stroke-width="5" stroke-linecap="round" transform="rotate(${ang.toFixed(1)} 60 116)"/>
+    <circle cx="60" cy="116" r="6" fill="${FG}"/>${tr}`;
+}
+const polarC = (a, r, cx, cy) => { const t = (a - 90) * Math.PI / 180; return [cx + r * Math.cos(t), cy + r * Math.sin(t)]; };
+
+const TILES = [["temp", "Temperatura", "°C", 1], ["hum", "Wilgotność", "%", 0], ["press", "Ciśnienie", "hPa", 1]];
 
 function buildGauges() {
   const box = document.getElementById("gauges");
-  for (const g of GAUGES) {
-    const el = document.createElement("section"); el.className = "box gauge";
-    el.innerHTML = `<h2>${g[1]}</h2><div class="g"></div>`; box.appendChild(el);
-    makeGauge(el.querySelector(".g"), g);
+  for (const [key, title, unit] of TILES) {
+    const el = document.createElement("section"); el.className = "box gauge mtile";
+    el.innerHTML = `<h2>${title}</h2>
+      <div class="mrow"><svg id="ic-${key}" viewBox="0 0 120 220" class="mic" aria-hidden="true"></svg>
+        <div class="vbox"><span class="wunit">${unit}</span><span class="vval" id="v-${key}">–</span></div></div>
+      <div class="mm"><div>min · <span id="tmin-${key}">–</span><b class="cmin" id="min-${key}">–</b></div>
+        <div>maks · <span id="tmax-${key}">–</span><b class="cmax" id="max-${key}">–</b></div></div>`;
+    box.appendChild(el);
   }
   buildWindTile(box);
+}
+
+function updateGauges(v, rows = []) {
+  const hm = (t) => new Date(t * 1000).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" });
+  const f = (x, d) => fmt(x, d).replace("-", "−");
+  for (const [key, , , dec] of TILES) {
+    const val = pick(v, key);
+    document.getElementById("v-" + key).textContent = val == null ? "–" : f(val, key === "press" ? 0 : dec);
+    let mn = null, mx = null;
+    for (const r of rows) { const x = pick(r, key); if (x == null) continue;
+      if (!mn || x < mn.x) mn = { x, t: r.t }; if (!mx || x > mx.x) mx = { x, t: r.t }; }
+    if (mn) { document.getElementById("min-" + key).textContent = f(mn.x, dec); document.getElementById("tmin-" + key).textContent = hm(mn.t); }
+    if (mx) { document.getElementById("max-" + key).textContent = f(mx.x, dec); document.getElementById("tmax-" + key).textContent = hm(mx.t); }
+  }
+  document.getElementById("ic-temp").innerHTML = iconThermo(pick(v, "temp"));
+  document.getElementById("ic-hum").innerHTML = iconDrop(pick(v, "hum"));
+  // tendencja ciśnienia: zmiana względem pomiaru sprzed ~3 h
+  const now = rows.length ? rows[rows.length - 1].t : Date.now() / 1000;
+  const old = rows.filter(r => r.t <= now - 3 * 3600 && pick(r, "press") != null).pop();
+  const p = pick(v, "press");
+  document.getElementById("ic-press").innerHTML = iconBaro(p, old && p != null ? p - pick(old, "press") : 0);
 }
 
 // ---------- Kafelek wiatru (SVG, km/h) ----------
@@ -205,14 +218,6 @@ function updateWindTile(v, t, maxToday) {
   document.getElementById("wArc").setAttribute("d", `M${x1.toFixed(1)} ${y1.toFixed(1)} A66 66 0 0 1 ${x2.toFixed(1)} ${y2.toFixed(1)}`);
 }
 
-function updateGauges(v) {
-  for (const [key, g] of Object.entries(gauges)) {
-    const val = pick(v, key);
-    if (val == null) continue;
-    g.di.animate({ key: "value", to: Math.min(g.max, Math.max(g.min, val)), duration: 800, easing: am5.ease.out(am5.ease.cubic) });
-    g.label.set("text", `${fmt(val, key === "hum" ? 0 : 1)} ${g.unit}`);
-  }
-}
 
 // ---------- Kafelki ----------
 function updateCards(v) {
@@ -432,9 +437,10 @@ async function loadLatest() {
   const age = Math.round((Date.now() / 1000 - L.t) / 60);
   document.getElementById("updated").textContent =
     "Pomiar: " + new Date(L.t * 1000).toLocaleString("pl-PL") + (age > 30 ? ` (${age} min temu)` : "");
-  updateGauges(v); updateCards(v);
+  updateCards(v);
   const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Warsaw" });
   const rows = await get(`data/days/${today}.json`).catch(() => []);
+  updateGauges(v, rows);
   const vals = rows.map(r => pick(r, "gust") ?? pick(r, "wind")).filter(x => x != null);
   updateWindTile(v, L.t, vals.length ? Math.max(...vals, pick(v, "gust") ?? 0) : pick(v, "gust"));
 }
