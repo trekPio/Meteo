@@ -10,6 +10,7 @@
 <script src="https://cdn.amcharts.com/lib/5/themes/Animated.js"></script>
 <script src="https://cdn.amcharts.com/lib/5/themes/Dark.js"></script>
 <script src="https://cdn.amcharts.com/lib/5/themes/NordDark.js"></script>
+<script src="https://cdn.amcharts.com/lib/5/themes/Responsive.js"></script>
 <script src="https://cdn.amcharts.com/lib/5/locales/pl_PL.js"></script>
 <style>
   :root { --bg:#f4f6f8; --card:#fff; --fg:#1d2733; --muted:#6b7785; --line:#e3e7ec; --acc:#2f7fd8; }
@@ -79,7 +80,7 @@ const GAUGES = [
 ];
 // Wykresy: seria = [klucz, nazwa, kolor, typ?]; s2 = seria na prawej osi
 const CHARTS = [
-  { t: "Temperatura (°C)", s: [["temp", "Temperatura", "#e8684a"], ["feels", "Odczuwalna", "#f6bd16"], ["dew", "Punkt rosy", "#29a3a3"]] },
+  { t: "Temperatura (°C)", nord: true, s: [["temp", "Temperatura", "#e8684a"], ["feels", "Odczuwalna", "#f6bd16"], ["dew", "Punkt rosy", "#29a3a3"]] },
   { t: "Wilgotność (%)", s: [["hum", "Na zewnątrz", "#5b8ff9"], ["hin", "Wewnątrz", "#9270ca"]] },
   { t: "Ciśnienie (hPa)", s: [["press", "Ciśnienie", "#8c98a6"]] },
   { t: "Wiatr (m/s)", s: [["wind", "Prędkość", "#4caf50"], ["gust", "Porywy", "#a5d6a7"]] },
@@ -261,20 +262,28 @@ function buildCharts(rows) {
 
     const el = document.createElement("section"); el.className = "box chart";
     el.innerHTML = `<h2>${c.t}</h2><div class="c"></div>`; box.appendChild(el);
-    const root = newRoot(el.querySelector(".c")); chartRoots.push(root);
+    let root;
+    if (c.nord) {   // styl "Data Grouping": Nord Dark + Responsive
+      root = am5.Root.new(el.querySelector(".c"));
+      root.setThemes([am5themes_Animated.new(root), am5themes_NordDark.new(root), am5themes_Responsive.new(root)]);
+      root.locale = am5locales_pl_PL;
+    } else root = newRoot(el.querySelector(".c"));
+    chartRoots.push(root);
     root.dateFormatter.setAll({ dateFormat: "d MMM HH:mm", dateFields: ["valueX"] });
 
     const chart = root.container.children.push(am5xy.XYChart.new(root, {
       panX: true, panY: false, wheelX: "panX", wheelY: "zoomX", pinchZoomX: true, paddingLeft: 0, layout: root.verticalLayout,
     }));
-    chart.set("cursor", am5xy.XYCursor.new(root, { behavior: "zoomX" })).lineY.set("visible", false);
+    // Nord: przeciąganie przesuwa wykres (Pan); pozostałe: zaznaczenie przybliża
+    chart.set("cursor", am5xy.XYCursor.new(root, { behavior: c.nord ? "none" : "zoomX" })).lineY.set("visible", false);
 
     const xAxis = chart.xAxes.push(am5xy.DateAxis.new(root, {
       baseInterval: { timeUnit: "minute", count: 1 }, groupData: true, groupCount: 400,
-      renderer: am5xy.AxisRendererX.new(root, { minGridDistance: 80 }),
+      maxDeviation: 0, renderer: am5xy.AxisRendererX.new(root, { minGridDistance: c.nord ? 60 : 80, minorGridEnabled: !!c.nord }),
       tooltip: am5.Tooltip.new(root, {}), tooltipDateFormat: "d MMM, HH:mm",
     }));
     const yAxis = chart.yAxes.push(am5xy.ValueAxis.new(root, { renderer: am5xy.AxisRendererY.new(root, {}) }));
+    if (c.nord) [xAxis, yAxis].forEach(a => a.get("renderer").grid.template.setAll({ strokeDasharray: [5, 5] }));
     let y2 = null;
     if (all.some(s => s[4])) {
       y2 = chart.yAxes.push(am5xy.ValueAxis.new(root, { min: 0, renderer: am5xy.AxisRendererY.new(root, { opposite: true }) }));
@@ -285,17 +294,32 @@ function buildCharts(rows) {
       const Cls = type === "step" ? am5xy.StepLineSeries : am5xy.LineSeries;
       const s = chart.series.push(Cls.new(root, {
         name, xAxis, yAxis: right ? y2 : yAxis, valueXField: "t", valueYField: "v",
-        stroke: am5.color(color), fill: am5.color(color), autoGapCount: 180,
+        ...(c.nord ? {} : { stroke: am5.color(color), fill: am5.color(color) }), autoGapCount: 180,
         tooltip: am5.Tooltip.new(root, { labelText: "{name}: [bold]{valueY.formatNumber('#.0')}[/]" }),
       }));
-      s.strokes.template.set("strokeWidth", 2);
-      if (all.length === 1) s.fills.template.setAll({ visible: true, fillOpacity: .12 });
+      s.strokes.template.set("strokeWidth", c.nord ? 1 : 2);
+      if (c.nord) s.fills.template.setAll({ visible: true, fillOpacity: .08 });
+      else if (all.length === 1) s.fills.template.setAll({ visible: true, fillOpacity: .12 });
       s.data.setAll(seriesData(rows, key));
       seriesList.push({ series: s, key });
     }
 
-    const sb = am5.Scrollbar.new(root, { orientation: "horizontal", height: 8, marginTop: 6 });
-    chart.set("scrollbarX", sb); chart.bottomAxesContainer.children.push(sb);
+    if (c.nord) {   // suwak z podglądem przebiegu temperatury
+      const sb = am5xy.XYChartScrollbar.new(root, { orientation: "horizontal", height: 50 });
+      chart.set("scrollbarX", sb);
+      const sbx = sb.chart.xAxes.push(am5xy.DateAxis.new(root, {
+        baseInterval: { timeUnit: "minute", count: 1 }, groupData: true, groupCount: 300,
+        groupIntervals: [{ timeUnit: "minute", count: 10 }, { timeUnit: "hour", count: 1 }, { timeUnit: "hour", count: 6 }, { timeUnit: "day", count: 1 }],
+        renderer: am5xy.AxisRendererX.new(root, { minorGridEnabled: true, opposite: false, strokeOpacity: 0 }),
+      }));
+      const sby = sb.chart.yAxes.push(am5xy.ValueAxis.new(root, { renderer: am5xy.AxisRendererY.new(root, {}) }));
+      const sbs = sb.chart.series.push(am5xy.LineSeries.new(root, { xAxis: sbx, yAxis: sby, valueXField: "t", valueYField: "v" }));
+      sbs.data.setAll(seriesData(rows, all[0][0]));
+      seriesList.push({ series: sbs, key: all[0][0] });
+    } else {
+      const sb = am5.Scrollbar.new(root, { orientation: "horizontal", height: 8, marginTop: 6 });
+      chart.set("scrollbarX", sb); chart.bottomAxesContainer.children.push(sb);
+    }
     if (all.length > 1) {
       const legend = chart.children.push(am5.Legend.new(root, { centerX: am5.p50, x: am5.p50, marginTop: 4 }));
       legend.labels.template.set("fontSize", 12); legend.markers.template.setAll({ width: 12, height: 12 });
