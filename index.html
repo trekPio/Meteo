@@ -97,6 +97,32 @@ const K = {
   rainYear: ["rainfall.yearly", "rainfall_piezo.yearly"],
   solar: ["solar_and_uvi.solar"], uvi: ["solar_and_uvi.uvi"],
 };
+// Wykresy: seria = [klucz, nazwa, kolor, typ?]; s2 = seria na prawej osi
+const CHARTS = [
+  { t: "Temperatura (°C)", nord: true, s: [["temp", "Temperatura", "#e8684a"], ["feels", "Odczuwalna", "#f6bd16"], ["dew", "Punkt rosy", "#29a3a3"]] },
+  { t: "Wilgotność (%)", s: [["hum", "Na zewnątrz", "#5b8ff9"], ["hin", "Wewnątrz", "#9270ca"]] },
+  { t: "Ciśnienie (hPa)", s: [["press", "Ciśnienie", "#8c98a6"]] },
+  { t: "Wiatr (m/s)", s: [["wind", "Prędkość", "#4caf50"], ["gust", "Porywy", "#a5d6a7"]] },
+  { t: "Opad (mm)", s: [["rainDay", "Suma dzienna", "#5b8ff9", "step"], ["rainRate", "Intensywność mm/h", "#90caf9"]] },
+  { t: "Słońce (W/m²) i UV", s: [["solar", "Promieniowanie", "#f6bd16"]], s2: [["uvi", "UV", "#e8684a"]] },
+];
+const DIRS = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
+const DARK = true;   // cała strona w ciemnym motywie
+
+// ---------- Pomocnicze ----------
+const pick = (o, name) => { for (const k of K[name]) if (o[k] != null) return o[k]; return null; };
+const fmt = (v, d = 1) => v == null ? "–" : v.toLocaleString("pl-PL", { maximumFractionDigits: d, minimumFractionDigits: d });
+const get = async (p) => { const r = await fetch(p + "?v=" + Date.now()); if (!r.ok) throw new Error(p + ": " + r.status); return r.json(); };
+const err = (e) => document.getElementById("err").textContent = e ? "Nie udało się wczytać danych: " + e.message : "";
+
+function newRoot(el) {
+  const root = am5.Root.new(el);
+  root.setThemes([am5themes_Animated.new(root), ...(DARK ? [am5themes_Dark.new(root)] : [])]);
+  root.locale = am5locales_pl_PL;
+  root.numberFormatter.set("numberFormat", "#,###.#");
+  return root;
+}
+
 // ---------- Kafelki: temperatura, wilgotność, ciśnienie (SVG) ----------
 const FG = "#e7ecf1", TILE_BG = "#1b2129", COLD_BELOW = 10;   // poniżej 10 °C szronek, od 10 °C słoneczko
 
