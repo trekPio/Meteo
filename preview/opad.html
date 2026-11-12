@@ -128,7 +128,7 @@ const cumS = chart.series.push(am5xy.StepLineSeries.new(root, {
   stroke: am5.color(0x88c0d0),
   tooltip: am5.Tooltip.new(root, { labelText: "Razem od początku zakresu: [bold]{valueY.formatNumber('#.0')} mm[/]" }),
 }));
-cumS.strokes.template.setAll({ strokeWidth: 1.5, strokeDasharray: [4, 3] });
+cumS.strokes.template.setAll({ strokeWidth: 1.5 });
 
 const legend = chart.children.push(am5.Legend.new(root, { centerX: am5.p50, x: am5.p50 }));
 legend.data.setAll([cols, rateS, cumS]);
