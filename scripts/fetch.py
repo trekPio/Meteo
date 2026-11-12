@@ -4,6 +4,7 @@
 Zmienne środowiskowe (GitHub Secrets): ECOWITT_APP_KEY, ECOWITT_API_KEY, ECOWITT_MAC
 """
 import json
+import os
 import sys
 from datetime import datetime
 
@@ -36,7 +37,7 @@ units = {k: u for k, (_, u, _) in flat.items()}
 
 store.ROOT.mkdir(exist_ok=True)
 (store.ROOT / "latest.json").write_text(
-    json.dumps({"t": ts, "values": values, "units": units}, ensure_ascii=False, indent=1), encoding="utf-8")
+    json.dumps({"t": ts, "src": os.environ.get("FETCH_SOURCE", "auto"), "fetched": int(datetime.now().timestamp()), "values": values, "units": units}, ensure_ascii=False, indent=1), encoding="utf-8")
 
 months = store.merge_rows([{"t": ts, **values}])
 store.rebuild_hourly(months)
