@@ -37,6 +37,8 @@
   .vbox { position:relative; width:104px; height:84px; border:1.5px solid #3b4552; border-radius:14px; background:#222a33;
           display:flex; align-items:center; justify-content:center; margin-right:16px; flex:none; }
   .vval { font-size:34px; line-height:1; font-variant-numeric:tabular-nums; }
+  .wunit.clk { cursor:pointer; user-select:none; } .wunit.clk:hover { background:#4c5869; }
+  .wspd.ms { font-size:46px; }
   .trend { position:absolute; top:7px; left:8px; font-size:15px; color:#6b7785; }
   .trend.up { color:#c99a86; } .trend.down { color:#7fa7b8; }
   .mm { display:grid; grid-template-columns:1fr 1fr; margin-top:8px; font-size:12px; color:var(--muted); text-align:center; }
@@ -184,25 +186,40 @@ function buildGauges() {
     const el = document.createElement("section"); el.className = "box gauge mtile";
     el.innerHTML = `<h2>${title}</h2>
       <div class="mrow"><svg id="ic-${key}" viewBox="0 0 120 220" class="mic" aria-hidden="true"></svg>
-        <div class="vbox"><span class="wunit">${unit}</span><i class="ti trend" id="tr-${key}"></i><span class="vval" id="v-${key}">–</span></div></div>
-      <div class="mm"><div>min · <span id="tmin-${key}">–</span><b class="cmin" id="min-${key}">–</b></div>
-        <div>maks · <span id="tmax-${key}">–</span><b class="cmax" id="max-${key}">–</b></div></div>`;
+        <div class="vbox"><span class="wunit${key === "temp" ? " clk" : ""}" id="u-${key}"${key === "temp" ? ' title="Kliknij: °C / K"' : ""}>${unit}</span><i class="ti trend" id="tr-${key}"></i><span class="vval" id="v-${key}">–</span></div></div>
+      <div class="wfoot">
+        <div><div class="l">Min · <span id="tmin-${key}">–</span></div><div class="v"><i class="ti ti-arrow-down"></i> <span id="min-${key}">–</span> <small class="u2-${key}">${unit}</small></div></div>
+        <div><div class="l">Maks · <span id="tmax-${key}">–</span></div><div class="v"><i class="ti ti-arrow-up"></i> <span id="max-${key}">–</span> <small class="u2-${key}">${unit}</small></div></div></div>`;
     box.appendChild(el);
   }
   buildWindTile(box);
+  document.getElementById("u-temp").onclick = () => { tempUnit = tempUnit === "C" ? "K" : "C"; saveUnits(); redrawTiles(); };
+  document.getElementById("u-wind").onclick = () => { windUnit = windUnit === "kmh" ? "ms" : "kmh"; saveUnits(); redrawTiles(); };
 }
+
+// ---------- Jednostki przełączane kliknięciem (zapamiętywane w przeglądarce) ----------
+let tempUnit = "C", windUnit = "kmh", lastTiles = null;
+try { const u = JSON.parse(localStorage.getItem("meteoUnits") || "{}"); tempUnit = u.t || "C"; windUnit = u.w || "kmh"; } catch (e) {}
+const saveUnits = () => { try { localStorage.setItem("meteoUnits", JSON.stringify({ t: tempUnit, w: windUnit })); } catch (e) {} };
+const redrawTiles = () => { if (lastTiles) { updateGauges(...lastTiles.g); updateWindTile(...lastTiles.w); } };
+const tConv = (c) => c == null ? null : tempUnit === "K" ? c + 273.15 : c;
+const tLabel = () => tempUnit === "K" ? "K" : "°C";
 
 function updateGauges(v, rows = []) {
   const hm = (t) => new Date(t * 1000).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" });
   const f = (x, d) => fmt(x, d).replace("-", "−");
+  document.getElementById("u-temp").textContent = tLabel();
+  document.getElementById("v-temp").style.fontSize = tempUnit === "K" ? "27px" : "";
+  document.querySelectorAll(".u2-temp").forEach(e => e.textContent = tLabel());
   for (const [key, , , dec] of TILES) {
-    const val = pick(v, key);
+    const cv = key === "temp" ? tConv : (x) => x;
+    const val = cv(pick(v, key));
     document.getElementById("v-" + key).textContent = val == null ? "–" : f(val, key === "press" ? 0 : dec);
     let mn = null, mx = null;
     for (const r of rows) { const x = pick(r, key); if (x == null) continue;
       if (!mn || x < mn.x) mn = { x, t: r.t }; if (!mx || x > mx.x) mx = { x, t: r.t }; }
-    if (mn) { document.getElementById("min-" + key).textContent = f(mn.x, dec); document.getElementById("tmin-" + key).textContent = hm(mn.t); }
-    if (mx) { document.getElementById("max-" + key).textContent = f(mx.x, dec); document.getElementById("tmax-" + key).textContent = hm(mx.t); }
+    if (mn) { document.getElementById("min-" + key).textContent = f(cv(mn.x), dec); document.getElementById("tmin-" + key).textContent = hm(mn.t); }
+    if (mx) { document.getElementById("max-" + key).textContent = f(cv(mx.x), dec); document.getElementById("tmax-" + key).textContent = hm(mx.t); }
   }
   for (const [key] of TILES) setTrend(key, rows, pick(v, key));
   setTrend("wind", rows, pick(v, "wind"));
@@ -216,7 +233,8 @@ function updateGauges(v, rows = []) {
 }
 
 // ---------- Kafelek wiatru (SVG, km/h) ----------
-const kmh = (ms) => ms == null ? null : Math.round(ms * 3.6);
+const kmh = (ms) => ms == null ? null : windUnit === "ms" ? fmt(ms, 1) : Math.round(ms * 3.6);
+const wLabel = () => windUnit === "ms" ? "m/s" : "km/h";
 const polar = (a, r) => { const t = (a - 90) * Math.PI / 180; return [100 + r * Math.cos(t), 100 + r * Math.sin(t)]; };
 
 function buildWindTile(box) {
@@ -240,18 +258,21 @@ function buildWindTile(box) {
       <g id="wArrow" style="transition:transform .8s ease;transform-box:view-box;transform-origin:100px 100px">
         <path d="M100 58 L126 134 L100 118 L74 134 Z" fill="none" stroke="#fff" stroke-width="4" stroke-linejoin="round"/></g>
     </svg>
-    <div class="wbox"><span class="wunit">km/h</span><i class="ti trend" id="tr-wind"></i><span id="wSpd" class="wspd">–</span><span id="wDir" class="wdir"></span></div>
+    <div class="wbox"><span class="wunit clk" id="u-wind" title="Kliknij: km/h / m/s">km/h</span><i class="ti trend" id="tr-wind"></i><span id="wSpd" class="wspd">–</span><span id="wDir" class="wdir"></span></div>
   </div>
   <div class="wfoot">
-    <div><div class="l">Porywy</div><div class="v"><i class="ti ti-wind"></i> <span id="wGust">–</span> <small>km/h</small></div></div>
-    <div><div class="l">Maks. dziś</div><div class="v"><i class="ti ti-trending-up"></i> <span id="wMax">–</span> <small>km/h</small></div></div>
+    <div><div class="l">Porywy</div><div class="v"><i class="ti ti-wind"></i> <span id="wGust">–</span> <small class="u2-wind">km/h</small></div></div>
+    <div><div class="l">Maks. dziś</div><div class="v"><i class="ti ti-trending-up"></i> <span id="wMax">–</span> <small class="u2-wind">km/h</small></div></div>
   </div>`;
   box.appendChild(el);
 }
 
 function updateWindTile(v, t, maxToday) {
+  document.getElementById("u-wind").textContent = wLabel();
+  document.querySelectorAll(".u2-wind").forEach(e => e.textContent = wLabel());
   const d = pick(v, "dir");
   document.getElementById("wSpd").textContent = kmh(pick(v, "wind")) ?? "–";
+  document.getElementById("wSpd").classList.toggle("ms", windUnit === "ms");
   document.getElementById("wGust").textContent = kmh(pick(v, "gust")) ?? "–";
   document.getElementById("wMax").textContent = kmh(maxToday) ?? "–";
   const age = Math.round((Date.now() / 1000 - t) / 60);
@@ -487,7 +508,9 @@ async function loadLatest() {
   const rows = await get(`data/days/${today}.json`).catch(() => []);
   updateGauges(v, rows);
   const vals = rows.map(r => pick(r, "gust") ?? pick(r, "wind")).filter(x => x != null);
-  updateWindTile(v, L.t, vals.length ? Math.max(...vals, pick(v, "gust") ?? 0) : pick(v, "gust"));
+  const mxw = vals.length ? Math.max(...vals, pick(v, "gust") ?? 0) : pick(v, "gust");
+  updateWindTile(v, L.t, mxw);
+  lastTiles = { g: [v, rows], w: [v, L.t, mxw] };
 }
 
 async function rebuild() { try { err(); buildCharts(await loadRows()); } catch (e) { err(e); } }
