@@ -94,6 +94,8 @@ const xAxis = chart.xAxes.push(am5xy.DateAxis.new(root, {
 const yAxis = chart.yAxes.push(am5xy.ValueAxis.new(root, { min: 0, renderer: am5xy.AxisRendererY.new(root, {}) }));
 const y2 = chart.yAxes.push(am5xy.ValueAxis.new(root, { min: 0, renderer: am5xy.AxisRendererY.new(root, { opposite: true }) }));
 y2.get("renderer").grid.template.set("forceHidden", true);
+y2.get("renderer").labels.template.setAll({ fill: am5.color(0x88c0d0), fontSize: 11 });
+y2.children.unshift(am5.Label.new(root, { text: "suma mm", rotation: -90, y: am5.p50, centerX: am5.p50, fill: am5.color(0x88c0d0), fontSize: 11 }));
 [xAxis, yAxis].forEach(a => a.get("renderer").grid.template.setAll({ strokeDasharray: [5, 5] }));
 
 // 1) słupki: suma opadu w przedziale (grupowanie amCharts sumuje przyrosty)
@@ -108,12 +110,18 @@ cols.columns.template.adapters.add("fill", (fill, t) => {
   const mmh = (t.dataItem?.get("valueY") ?? 0) / intervalHours();
   return am5.color(mmh < 0.5 ? 0xa8d8ea : mmh < 4 ? 0x5e9fd8 : mmh < 10 ? 0x2f5fb3 : 0x9a6fd1);
 });
-// 4) maks. natężenie w przedziale (seria tylko do dymka)
+// 4) natężenie chwilowe (mm/h) – osobna oś po prawej; przy grupowaniu pokazuje maksimum z przedziału
+const y3 = chart.yAxes.push(am5xy.ValueAxis.new(root, { min: 0, renderer: am5xy.AxisRendererY.new(root, { opposite: true }) }));
+y3.get("renderer").grid.template.set("forceHidden", true);
+y3.get("renderer").labels.template.setAll({ fill: am5.color(0xd08770), fontSize: 11 });
+y3.children.unshift(am5.Label.new(root, { text: "mm/h", rotation: -90, y: am5.p50, centerX: am5.p50, fill: am5.color(0xd08770), fontSize: 11 }));
 const rateS = chart.series.push(am5xy.LineSeries.new(root, {
-  name: "Maks. natężenie", xAxis, yAxis: y2, valueXField: "t", valueYField: "r", valueYGrouped: "high",
-  tooltip: am5.Tooltip.new(root, { labelText: "Maks. natężenie: [bold]{valueY.formatNumber('#.0')} mm/h[/]" }),
+  name: "Natężenie chwilowe", xAxis, yAxis: y3, valueXField: "t", valueYField: "r", valueYGrouped: "high",
+  stroke: am5.color(0xd08770), fill: am5.color(0xd08770),
+  tooltip: am5.Tooltip.new(root, { labelText: "Natężenie (maks.): [bold]{valueY.formatNumber('#.0')} mm/h[/]" }),
 }));
-rateS.strokes.template.set("forceHidden", true);
+rateS.strokes.template.setAll({ strokeWidth: 1.5 });
+rateS.fills.template.setAll({ visible: true, fillOpacity: 0.12 });
 // 3) suma narastająca od początku zakresu (prawa oś)
 const cumS = chart.series.push(am5xy.StepLineSeries.new(root, {
   name: "Suma narastająca", xAxis, yAxis: y2, valueXField: "t", valueYField: "c", valueYGrouped: "close",
@@ -123,7 +131,7 @@ const cumS = chart.series.push(am5xy.StepLineSeries.new(root, {
 cumS.strokes.template.setAll({ strokeWidth: 1.5, strokeDasharray: [4, 3] });
 
 const legend = chart.children.push(am5.Legend.new(root, { centerX: am5.p50, x: am5.p50 }));
-legend.data.setAll([cols, cumS]);
+legend.data.setAll([cols, rateS, cumS]);
 chart.set("scrollbarX", am5.Scrollbar.new(root, { orientation: "horizontal", height: 8 }));
 
 async function show(days) {
