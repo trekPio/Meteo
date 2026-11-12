@@ -1,5 +1,6 @@
 """Wspólny zapis danych: pliki dzienne, indeks i agregaty godzinowe (dla widoku rocznego)."""
 import json
+import math
 import os
 import urllib.parse
 import urllib.request
@@ -74,7 +75,11 @@ def rebuild_hourly(months):
         for h in sorted(buckets):
             rec = {"t": h + 1800}
             for k, vals in buckets[h].items():
-                rec[k] = round(max(vals) if any(c in k for c in CUMULATIVE) else sum(vals) / len(vals), 2)
+                if "direction" in k:   # kierunek: średnia wektorowa (350° i 10° -> 0°, nie 180°)
+                    x = sum(math.cos(math.radians(v)) for v in vals); y = sum(math.sin(math.radians(v)) for v in vals)
+                    rec[k] = round(math.degrees(math.atan2(y, x)) % 360, 1)
+                else:
+                    rec[k] = round(max(vals) if any(c in k for c in CUMULATIVE) else sum(vals) / len(vals), 2)
             out.append(rec)
         (HOURLY / f"{month}.json").write_text(json.dumps(out, separators=(",", ":")))
 
