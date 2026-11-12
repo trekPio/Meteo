@@ -103,7 +103,7 @@ const cols = chart.series.push(am5xy.ColumnSeries.new(root, {
 }));
 cols.columns.template.setAll({ width: am5.percent(78), strokeOpacity: 0, cornerRadiusTL: 3, cornerRadiusTR: 3 });
 // 2) kolor wg natężenia: suma ÷ długość przedziału = mm/h
-const intervalHours = () => { const g = xAxis.get("groupInterval") || xAxis.get("baseInterval"); return HOURS[g.timeUnit] * g.count; };
+const intervalHours = () => { const g = xAxis.getPrivate("groupInterval") || xAxis.getPrivate("baseInterval") || xAxis.get("baseInterval"); return HOURS[g.timeUnit] * g.count; };
 cols.columns.template.adapters.add("fill", (fill, t) => {
   const mmh = (t.dataItem?.get("valueY") ?? 0) / intervalHours();
   return am5.color(mmh < 0.5 ? 0xa8d8ea : mmh < 4 ? 0x5e9fd8 : mmh < 10 ? 0x2f5fb3 : 0x9a6fd1);
