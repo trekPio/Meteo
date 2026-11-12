@@ -13,10 +13,13 @@
 <script src="https://cdn.amcharts.com/lib/5/themes/Responsive.js"></script>
 <script src="https://cdn.amcharts.com/lib/5/locales/pl_PL.js"></script>
 <style>
-  :root { --bg:#f4f6f8; --card:#fff; --fg:#1d2733; --muted:#6b7785; --line:#e3e7ec; --acc:#2f7fd8; }
-  @media (prefers-color-scheme: dark) {
-    :root { --bg:#12161b; --card:#1b2129; --fg:#e7ecf1; --muted:#8c98a6; --line:#2a323c; --acc:#5aa2f0; }
-  }
+  :root { --bg:#12161b; --card:#1b2129; --fg:#e7ecf1; --muted:#8c98a6; --line:#2a323c; --acc:#5aa2f0; color-scheme:dark; }
+  .chead { display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:space-between; margin:0 4px 6px; }
+  .chead h2 { margin:0 !important; }
+  .seg { display:flex; gap:4px; }
+  .seg button { border:1px solid var(--line); background:transparent; color:var(--muted); padding:3px 10px; border-radius:6px; cursor:pointer; font:inherit; font-size:12px; }
+  .seg button.on { background:var(--acc); border-color:var(--acc); color:#fff; }
+  .sel { color:var(--muted); font-size:12px; margin:0 4px 4px; min-height:16px; }
   * { box-sizing:border-box; }
   body { margin:0; font:15px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--fg); }
   header { padding:20px 20px 8px; display:flex; flex-wrap:wrap; gap:12px; align-items:baseline; justify-content:space-between; max-width:1200px; margin:auto; }
@@ -56,6 +59,7 @@
   <div class="gauges" id="gauges"></div>
   <div class="cards" id="cards"></div>
   <div class="charts" id="charts"></div>
+  <div class="charts" id="rose" style="margin-top:16px"></div>
 </main>
 
 <script>
@@ -88,7 +92,7 @@ const CHARTS = [
   { t: "Słońce (W/m²) i UV", s: [["solar", "Promieniowanie", "#f6bd16"]], s2: [["uvi", "UV", "#e8684a"]] },
 ];
 const DIRS = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
-const DARK = matchMedia("(prefers-color-scheme: dark)").matches;
+const DARK = true;   // cała strona w ciemnym motywie
 
 // ---------- Pomocnicze ----------
 const pick = (o, name) => { for (const k of K[name]) if (o[k] != null) return o[k]; return null; };
@@ -211,12 +215,25 @@ function roseData(rows) {
   return { data, n };
 }
 
-function buildWindRose(box, rows) {
+let roseRange = 7, roseRoot = null;
+const ROSE_RANGES = [[1, "24 h"], [7, "7 dni"], [30, "30 dni"], [365, "Rok"]];
+
+async function loadWindRose() {
+  try { buildWindRose(await loadRows(roseRange)); } catch (e) { err(e); }
+}
+
+function buildWindRose(rows) {
+  if (roseRoot) roseRoot.dispose(); roseRoot = null; rose = null;
+  const box = document.getElementById("rose"); box.innerHTML = "";
   const { data, n } = roseData(rows);
-  if (!n) return;
   const el = document.createElement("section"); el.className = "box chart";
-  el.innerHTML = `<h2>Róża wiatrów (% czasu, ${n} pomiarów)</h2><div class="c" style="height:480px"></div>`; box.appendChild(el);
-  const root = am5.Root.new(el.querySelector(".c")); chartRoots.push(root);
+  el.innerHTML = `<div class="chead"><h2>Róża wiatrów (% czasu, ${n} pomiarów)</h2><div class="seg">${
+    ROSE_RANGES.map(([d, l]) => `<button data-d="${d}" class="${d === roseRange ? "on" : ""}">${l}</button>`).join("")}</div></div>
+    <div class="c" style="height:480px"></div>`;
+  box.appendChild(el);
+  el.querySelectorAll(".seg button").forEach(b => b.onclick = () => { roseRange = +b.dataset.d; loadWindRose(); });
+  if (!n) { el.querySelector(".c").outerHTML = `<p style="color:var(--muted);margin:4px">Brak danych o wietrze w tym zakresie.</p>`; return; }
+  const root = am5.Root.new(el.querySelector(".c")); roseRoot = root;
   root.setThemes([am5themes_Animated.new(root), am5themes_NordDark.new(root)]);
   root.locale = am5locales_pl_PL;
   // N na środku górnego sektora: obrót o pół sektora (360/16/2 = 11,25°)
@@ -249,11 +266,40 @@ function updateWindRose(rows) {
   rose.xAxis.data.setAll(data); rose.series.data.setAll(data);
 }
 
+// ---------- Tryby kursora (wykres temperatury) ----------
+const CURSOR_MODES = [["zoom", "Zoom"], ["select", "Select"], ["pan", "Pan"], ["none", "None"]];
+let cursorMode = "pan";
+
+function setupCursorModes(el, chart, cursor, getX, rows, key) {
+  const sel = el.querySelector(".sel");
+  const apply = (m) => {
+    cursorMode = m;
+    cursor.set("behavior", { zoom: "zoomX", select: "selectX", pan: "none", none: "none" }[m]);
+    chart.set("panX", m === "pan");
+    el.querySelectorAll(".seg button").forEach(b => b.classList.toggle("on", b.dataset.m === m));
+    sel.textContent = { zoom: "Przeciągnij po wykresie, aby przybliżyć wybrany fragment.",
+      select: "Zaznacz fragment, aby zobaczyć statystyki temperatury.",
+      pan: "Przeciągnij wykres, aby go przesunąć; kółko myszy przybliża.", none: "" }[m];
+  };
+  el.querySelectorAll(".seg button").forEach(b => b.onclick = () => apply(b.dataset.m));
+  cursor.events.on("selectended", () => {
+    if (cursorMode !== "select") return;
+    const x = getX(), toT = (p) => x.positionToDate(x.toAxisPosition(p)).getTime() / 1000;
+    let a = toT(cursor.getPrivate("downPositionX")), b = toT(cursor.getPrivate("positionX"));
+    if (a > b) [a, b] = [b, a];
+    const v = rows.filter(r => r.t >= a && r.t <= b).map(r => pick(r, key)).filter(x => x != null);
+    if (!v.length) { sel.textContent = "Brak danych w zaznaczeniu."; return; }
+    const f = (t) => new Date(t * 1000).toLocaleString("pl-PL", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+    sel.textContent = `${f(a)} – ${f(b)}:  min ${fmt(Math.min(...v))} °C · maks ${fmt(Math.max(...v))} °C · średnio ${fmt(v.reduce((s, x) => s + x, 0) / v.length)} °C`;
+  });
+  apply(cursorMode);
+}
+
 // ---------- Wykresy ----------
 let range = 1, chartRoots = [], seriesList = [];   // seriesList: {series, key}
 
 function buildCharts(rows) {
-  chartRoots.forEach(r => r.dispose()); chartRoots = []; seriesList = []; rose = null;
+  chartRoots.forEach(r => r.dispose()); chartRoots = []; seriesList = [];
   const box = document.getElementById("charts"); box.innerHTML = "";
   for (const c of CHARTS) {
     const all = [...c.s.map(s => [...s, false]), ...(c.s2 || []).map(s => [...s, true])]
@@ -261,7 +307,11 @@ function buildCharts(rows) {
     if (!all.length) continue;
 
     const el = document.createElement("section"); el.className = "box chart";
-    el.innerHTML = `<h2>${c.t}</h2><div class="c"></div>`; box.appendChild(el);
+    el.innerHTML = c.nord
+      ? `<div class="chead"><h2>${c.t}</h2><div class="seg">${CURSOR_MODES.map(([m, l]) =>
+          `<button data-m="${m}" class="${m === cursorMode ? "on" : ""}">${l}</button>`).join("")}</div></div><div class="sel"></div><div class="c"></div>`
+      : `<h2>${c.t}</h2><div class="c"></div>`;
+    box.appendChild(el);
     let root;
     if (c.nord) {   // styl "Data Grouping": Nord Dark + Responsive
       root = am5.Root.new(el.querySelector(".c"));
@@ -275,7 +325,9 @@ function buildCharts(rows) {
       panX: true, panY: false, wheelX: "panX", wheelY: "zoomX", pinchZoomX: true, paddingLeft: 0, layout: root.verticalLayout,
     }));
     // Nord: przeciąganie przesuwa wykres (Pan); pozostałe: zaznaczenie przybliża
-    chart.set("cursor", am5xy.XYCursor.new(root, { behavior: c.nord ? "none" : "zoomX" })).lineY.set("visible", false);
+    const cursor = chart.set("cursor", am5xy.XYCursor.new(root, { behavior: c.nord ? "none" : "zoomX" }));
+    cursor.lineY.set("visible", false);
+    if (c.nord) setupCursorModes(el, chart, cursor, () => xAxis, rows, c.s[0][0]);
 
     const xAxis = chart.xAxes.push(am5xy.DateAxis.new(root, {
       baseInterval: { timeUnit: "minute", count: 1 }, groupData: true, groupCount: 400,
@@ -326,16 +378,15 @@ function buildCharts(rows) {
       legend.data.setAll(chart.series.values);
     }
   }
-  buildWindRose(box, rows);
   if (!box.children.length) box.innerHTML = `<p style="color:var(--muted)">Brak danych historycznych dla tego zakresu.</p>`;
 }
 
 const seriesData = (rows, key) => rows.map(r => ({ t: r.t * 1000, v: pick(r, key) })).filter(p => p.v != null);
 
-async function loadRows() {
+async function loadRows(r = range) {
   const idx = await get("data/index.json");
-  const from = Date.now() / 1000 - range * 86400;
-  if (range > 30) {   // widok roczny: agregaty godzinowe z plików miesięcznych
+  const from = Date.now() / 1000 - r * 86400;
+  if (r > 30) {   // widok roczny: agregaty godzinowe z plików miesięcznych
     const fromMonth = new Date(from * 1000).toISOString().slice(0, 7);
     const months = (idx.months || []).filter(m => m >= fromMonth);
     return (await Promise.all(months.map(m => get(`data/hourly/${m}.json`).catch(() => [])))).flat()
@@ -363,7 +414,7 @@ async function refresh() {   // co 5 min: tylko dane, bez resetowania zoomu
     err(); await loadLatest();
     const rows = await loadRows();
     seriesList.forEach(({ series, key }) => series.data.setAll(seriesData(rows, key)));
-    updateWindRose(rows);
+    updateWindRose(roseRange === range ? rows : await loadRows(roseRange));
   } catch (e) { err(e); }
 }
 
@@ -375,6 +426,7 @@ document.querySelectorAll(".ranges button").forEach(b => b.onclick = () => {
 buildGauges();
 loadLatest().catch(err);
 rebuild();
+loadWindRose();
 setInterval(refresh, 5 * 60 * 1000);
 </script>
 </body>
