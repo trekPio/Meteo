@@ -1,7 +1,7 @@
 {
- "t": 1794543922,
+ "t": 1794544222,
  "src": "auto",
- "fetched": 1794543934,
+ "fetched": 1794544255,
  "values": {
   "outdoor.temperature": 0.8,
   "outdoor.feels_like": 0.8,
@@ -25,12 +25,12 @@
   "rainfall_piezo.weekly": 6.8,
   "rainfall_piezo.monthly": 10.9,
   "rainfall_piezo.yearly": 885.6,
-  "wind.wind_speed": 1.0,
-  "wind.wind_gust": 2.1,
-  "wind.wind_direction": 53.0,
-  "wind.10_minute_average_wind_direction": 45.0,
-  "pressure.relative": 985.5,
-  "pressure.absolute": 985.5,
+  "wind.wind_speed": 0.9,
+  "wind.wind_gust": 1.4,
+  "wind.wind_direction": 42.0,
+  "wind.10_minute_average_wind_direction": 24.0,
+  "pressure.relative": 985.6,
+  "pressure.absolute": 985.6,
   "battery.haptic_array_battery": 2.36,
   "battery.haptic_array_capacitor": 2.2
  },
