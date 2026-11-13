@@ -224,7 +224,7 @@ const CHARTS = [
   { t: "Ciśnienie (hPa)", s: [["press", "Ciśnienie", "#8c98a6"]] },
   { t: "Wiatr", wind: true, s: [["wind", "Prędkość", "#4caf50"], ["gust", "Porywy", "#a5d6a7"]] },
   { t: "Opad (mm)", rain: true, s: [["rainDay", "Opad", "#5e9fd8"]] },
-  { t: "Słońce (W/m²) i UV", s: [["solar", "Promieniowanie", "#f6bd16"]], s2: [["uvi", "UV", "#e8684a"]] },
+  { t: "Słońce i UV", sun: true, s: [["solar", "Promieniowanie", "#f6bd16"]], s2: [["uvi", "UV", "#e8684a"]] },
 ];
 const DIRS = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
 const DARK = true;   // cała strona w ciemnym motywie
@@ -1014,6 +1014,7 @@ function buildCharts(rows) {
       .filter(([key]) => rows.some(r => pick(r, key) != null));
     if (!all.length) continue;
     if (c.rain) { buildRainChart(box, c, rows); continue; }
+    if (c.sun) { buildSunChart(box, c, rows); continue; }
 
     const el = document.createElement("section"); el.className = "box chart"; el.id = "ch-" + c.s[0][0];
     el.innerHTML = c.nord
@@ -1170,6 +1171,137 @@ function buildRainChart(box, c, rows) {
   chart.set("scrollbarX", sb); chart.bottomAxesContainer.children.push(sb);
   rainSeries = [cols, rateS, cumS];
   const d = rainIncrements(rows); rainSeries.forEach(s => s.data.setAll(d));
+}
+
+
+// ---------- Słońce i UV: nasłonecznienie (obszar + teoretyczne przy bezchmurnym niebie) i UV (słupki wg skali WHO) ----------
+const SITE = { lat: 52.55, lon: 19.12 };
+const UV_SCALE = [[3, 0x4caf50, "niski 0–2"], [6, 0xebcb8b, "umiarkowany 3–5"], [8, 0xe8954a, "wysoki 6–7"], [11, 0xbf616a, "bardzo wysoki 8–10"], [99, 0x9a6fd1, "ekstremalny 11+"]];
+const uvColor = (v) => UV_SCALE.find(([lim]) => v < lim)[1];
+// cos kąta zenitalnego słońca (przybliżenie NOAA) i model Haurwitza promieniowania przy bezchmurnym niebie [W/m²]
+function sunCosZ(ms) {
+  const d = new Date(ms), doy = (Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) - Date.UTC(d.getUTCFullYear(), 0, 0)) / 864e5;
+  const g = 2 * Math.PI / 365 * (doy - 1 + (d.getUTCHours() - 12) / 24);
+  const decl = 0.006918 - 0.399912 * Math.cos(g) + 0.070257 * Math.sin(g) - 0.006758 * Math.cos(2 * g) + 0.000907 * Math.sin(2 * g) - 0.002697 * Math.cos(3 * g) + 0.00148 * Math.sin(3 * g);
+  const eqt = 229.18 * (0.000075 + 0.001868 * Math.cos(g) - 0.032077 * Math.sin(g) - 0.014615 * Math.cos(2 * g) - 0.040849 * Math.sin(2 * g));
+  const tst = d.getUTCHours() * 60 + d.getUTCMinutes() + eqt + 4 * SITE.lon, ha = (tst / 4 - 180) * Math.PI / 180, lat = SITE.lat * Math.PI / 180;
+  return Math.sin(lat) * Math.sin(decl) + Math.cos(lat) * Math.cos(decl) * Math.cos(ha);
+}
+const clearSky = (ms) => { const c = sunCosZ(ms); return c > 0.01 ? 1098 * c * Math.exp(-0.057 / c) : 0; };
+
+function buildSunChart(box, c, rows) {
+  const el = document.createElement("section"); el.className = "box chart"; el.id = "ch-solar";
+  const yearView = range > 30;
+  el.innerHTML = `<h2><button class="home" title="Do góry strony" aria-label="Do góry strony"><i class="ti ti-home"></i></button>${yearView ? "Słońce – rok (średnie W/m² wg dnia i godziny)" : c.t}</h2>
+    <div class="c" style="height:${yearView ? 330 : 440}px"></div>${yearView ? `<div class="c2" style="height:220px;margin-top:8px"></div>` : ""}
+    <div class="rlg">${UV_SCALE.map(([, col, l]) => `<span><i style="background:#${col.toString(16).padStart(6, "0")}"></i>UV ${l}</span>`).join("")}</div>`;
+  box.appendChild(el);
+  const mk = (div) => { const root = am5.Root.new(div); chartRoots.push(root);
+    root.setThemes([am5themes_Animated.new(root), am5themes_NordDark.new(root), am5themes_Responsive.new(root)]);
+    root.locale = am5locales_pl_PL; root.numberFormatter.set("numberFormat", "#,###.#"); return root; };
+  if (yearView) return buildSunYear(el, rows, mk);
+
+  const root = mk(el.querySelector(".c"));
+  root.dateFormatter.setAll({ dateFormat: "d MMM HH:mm", dateFields: ["valueX"] });
+  const chart = root.container.children.push(am5xy.XYChart.new(root, {
+    panX: true, panY: false, wheelX: "panX", wheelY: "zoomX", pinchZoomX: true, paddingLeft: 0, layout: root.verticalLayout,
+  }));
+  chart.leftAxesContainer.set("layout", root.verticalLayout);   // dwa panele jeden pod drugim, wspólna oś czasu
+  chart.set("cursor", am5xy.XYCursor.new(root, { behavior: "zoomX" })).lineY.set("visible", false);
+  const xAxis = chart.xAxes.push(am5xy.DateAxis.new(root, {
+    baseInterval: { timeUnit: "minute", count: 1 }, groupData: true, groupCount: 300, maxDeviation: 0,
+    groupIntervals: [{ timeUnit: "minute", count: 5 }, { timeUnit: "minute", count: 10 }, { timeUnit: "minute", count: 30 }, { timeUnit: "hour", count: 1 }, { timeUnit: "hour", count: 3 }, { timeUnit: "day", count: 1 }],
+    renderer: am5xy.AxisRendererX.new(root, { minGridDistance: 70, minorGridEnabled: true }),
+    tooltip: am5.Tooltip.new(root, {}), tooltipDateFormat: "d MMM, HH:mm",
+  }));
+  const axisLabel = (a, text, color) => a.children.unshift(am5.Label.new(root, { text, rotation: -90, y: am5.p50, centerX: am5.p50, fill: am5.color(color), fontSize: 11 }));
+  const ySun = chart.yAxes.push(am5xy.ValueAxis.new(root, { min: 0, renderer: am5xy.AxisRendererY.new(root, {}), height: am5.percent(62) }));
+  const uvMax = Math.max(6, ...rows.map(r => pick(r, "uvi") ?? 0)) + 1;
+  const yUv = chart.yAxes.push(am5xy.ValueAxis.new(root, { min: 0, max: Math.ceil(uvMax), strictMinMax: true, renderer: am5xy.AxisRendererY.new(root, {}), height: am5.percent(38), marginTop: 14 }));
+  axisLabel(ySun, "W/m²", 0xf6bd16); axisLabel(yUv, "UV", 0xd8dee9);
+  [xAxis, ySun, yUv].forEach(a => a.get("renderer").grid.template.setAll({ strokeDasharray: [5, 5] }));
+  let lo = 0;   // pasy kategorii UV w tle dolnego panelu
+  for (const [lim, col] of UV_SCALE) { if (lo >= uvMax) break;
+    const r = yUv.createAxisRange(yUv.makeDataItem({ value: lo, endValue: Math.min(lim, uvMax + 1) }));
+    r.get("axisFill").setAll({ visible: true, fill: am5.color(col), fillOpacity: .07 }); r.get("grid").set("forceHidden", true); lo = lim; }
+
+  const first = rows[0]?.t * 1000, last = rows[rows.length - 1]?.t * 1000, clear = [];
+  for (let t = Math.floor(first / 6e5) * 6e5; t <= last; t += 6e5) clear.push({ t, v: Math.round(clearSky(t)) });
+  const cs = chart.series.push(am5xy.LineSeries.new(root, {
+    name: "Bezchmurne niebo (teoretycznie)", xAxis, yAxis: ySun, valueXField: "t", valueYField: "v", valueYGrouped: "average", stroke: am5.color(0x8c98a6),
+    tooltip: am5.Tooltip.new(root, { labelText: "Bezchmurnie: {valueY.formatNumber('#')} W/m²" }),
+  }));
+  cs.strokes.template.setAll({ strokeWidth: 1, strokeDasharray: [4, 4] }); cs.data.setAll(clear);
+  const sun = chart.series.push(am5xy.SmoothedXLineSeries.new(root, {
+    name: "Nasłonecznienie", xAxis, yAxis: ySun, valueXField: "t", valueYField: "v", valueYGrouped: "average", autoGapCount: 180,
+    stroke: am5.color(0xf6bd16), fill: am5.color(0xf6bd16),
+    tooltip: am5.Tooltip.new(root, { labelText: "Nasłonecznienie: [bold]{valueY.formatNumber('#')} W/m²[/]" }),
+  }));
+  sun.strokes.template.set("strokeWidth", 1.5); sun.fills.template.setAll({ visible: true, fillOpacity: .18 });
+  sun.data.setAll(seriesData(rows, "solar")); seriesList.push({ series: sun, key: "solar" });
+  const uv = chart.series.push(am5xy.ColumnSeries.new(root, {
+    name: "Indeks UV", xAxis, yAxis: yUv, valueXField: "t", valueYField: "v", valueYGrouped: "high",
+    tooltip: am5.Tooltip.new(root, { labelText: "UV (maks.): [bold]{valueY.formatNumber('#.0')}[/]" }),
+  }));
+  uv.columns.template.setAll({ width: am5.percent(85), strokeOpacity: 0, cornerRadiusTL: 2, cornerRadiusTR: 2 });
+  uv.columns.template.adapters.add("fill", (f, t) => am5.color(uvColor(t.dataItem?.get("valueY") ?? 0)));
+  uv.data.setAll(seriesData(rows, "uvi")); seriesList.push({ series: uv, key: "uvi" });
+  const legend = chart.children.push(am5.Legend.new(root, { centerX: am5.p50, x: am5.p50, marginTop: 4 }));
+  legend.labels.template.set("fontSize", 12); legend.markers.template.setAll({ width: 12, height: 12 });
+  legend.data.setAll([sun, cs]);
+  const sb = am5.Scrollbar.new(root, { orientation: "horizontal", height: 8, marginTop: 6 });
+  chart.set("scrollbarX", sb); chart.bottomAxesContainer.children.push(sb);
+}
+
+// Widok roczny: mapa cieplna (dzień × godzina) + dzienna energia [kWh/m²] i maks. UV dnia
+function buildSunYear(el, rows, mk) {
+  const fmtDay = (ms) => new Date(ms).toLocaleDateString("sv-SE", { timeZone: "Europe/Warsaw" });
+  const hourOf = (ms) => +new Date(ms).toLocaleString("en-GB", { timeZone: "Europe/Warsaw", hour: "2-digit", hourCycle: "h23" });
+  const cells = new Map(), days = new Map();
+  for (const r of rows) { const v = pick(r, "solar"), u = pick(r, "uvi"), ms = r.t * 1000, d = fmtDay(ms), h = hourOf(ms);
+    if (v != null) { const k = d + "|" + h, c = cells.get(k) || { day: d, hour: String(h).padStart(2, "0"), s: 0, n: 0 }; c.s += v; c.n++; cells.set(k, c); }
+    const D = days.get(d) || { day: d, t: Date.parse(d + "T12:00:00"), e: 0, hrs: new Set(), uv: 0 };
+    if (v != null && !D.hrs.has(h)) { D.hrs.add(h); D.e += v / 1000; }   // agregaty godzinowe: średnia W/m² × 1 h
+    if (u != null) D.uv = Math.max(D.uv, u); days.set(d, D); }
+  const dayList = [...days.values()].sort((a, b) => a.t - b.t);
+  const data = [...cells.values()].map(c => ({ day: c.day, hour: c.hour, v: Math.round(c.s / c.n) }));
+
+  const root = mk(el.querySelector(".c"));
+  const chart = root.container.children.push(am5xy.XYChart.new(root, { panX: false, panY: false, paddingLeft: 0, layout: root.verticalLayout }));
+  const xr = am5xy.AxisRendererX.new(root, { minGridDistance: 1 }); xr.grid.template.set("forceHidden", true); xr.labels.template.setAll({ fontSize: 12, centerX: 0 });
+  xr.labels.template.adapters.add("text", (t, target) => { const d = target.dataItem?.get("category"); return d && d.endsWith("-01") ? new Date(d).toLocaleDateString("pl-PL", { month: "short" }) : ""; });
+  const xAxis = chart.xAxes.push(am5xy.CategoryAxis.new(root, { categoryField: "day", renderer: xr }));
+  const yr = am5xy.AxisRendererY.new(root, { inversed: true, minGridDistance: 18 }); yr.grid.template.set("forceHidden", true);
+  const yAxis = chart.yAxes.push(am5xy.CategoryAxis.new(root, { categoryField: "hour", renderer: yr }));
+  xAxis.data.setAll(dayList.map(d => ({ day: d.day })));
+  yAxis.data.setAll([...Array(24).keys()].map(h => ({ hour: String(h).padStart(2, "0") })));
+  const s = chart.series.push(am5xy.ColumnSeries.new(root, { xAxis, yAxis, categoryXField: "day", categoryYField: "hour", valueField: "v", calculateAggregates: true }));
+  s.columns.template.setAll({ width: am5.percent(100), height: am5.percent(100), strokeOpacity: 0, tooltipText: "{day}, godz. {hour}: [bold]{v} W/m²[/]" });
+  s.set("heatRules", [{ target: s.columns.template, key: "fill", dataField: "value", min: am5.color(0x1e2630), max: am5.color(0xf6bd16) }]);
+  s.data.setAll(data);
+  const hl = chart.children.push(am5.HeatLegend.new(root, { orientation: "horizontal", startColor: am5.color(0x1e2630), endColor: am5.color(0xf6bd16), startText: "0 W/m²", endText: "", width: am5.percent(40), x: am5.p50, centerX: am5.p50, marginTop: 6 }));
+  s.events.on("datavalidated", () => { hl.set("endValue", s.getPrivate("valueHigh")); hl.set("endText", Math.round(s.getPrivate("valueHigh") || 0) + " W/m²"); });
+
+  const r2 = mk(el.querySelector(".c2"));
+  const c2 = r2.container.children.push(am5xy.XYChart.new(r2, { panX: true, panY: false, wheelX: "panX", wheelY: "zoomX", paddingLeft: 0, layout: r2.verticalLayout }));
+  c2.set("cursor", am5xy.XYCursor.new(r2, { behavior: "zoomX" })).lineY.set("visible", false);
+  const x2 = c2.xAxes.push(am5xy.DateAxis.new(r2, { baseInterval: { timeUnit: "day", count: 1 }, renderer: am5xy.AxisRendererX.new(r2, { minGridDistance: 70 }), tooltip: am5.Tooltip.new(r2, {}), tooltipDateFormat: "d MMM yyyy" }));
+  const yE = c2.yAxes.push(am5xy.ValueAxis.new(r2, { min: 0, renderer: am5xy.AxisRendererY.new(r2, {}) }));
+  const yU = c2.yAxes.push(am5xy.ValueAxis.new(r2, { min: 0, renderer: am5xy.AxisRendererY.new(r2, { opposite: true }) }));
+  yU.get("renderer").grid.template.set("forceHidden", true);
+  [x2, yE].forEach(a => a.get("renderer").grid.template.setAll({ strokeDasharray: [5, 5] }));
+  yE.children.unshift(am5.Label.new(r2, { text: "kWh/m²", rotation: -90, y: am5.p50, centerX: am5.p50, fill: am5.color(0xf6bd16), fontSize: 11 }));
+  yU.children.push(am5.Label.new(r2, { text: "UV", rotation: -90, y: am5.p50, centerX: am5.p50, fill: am5.color(0xd8dee9), fontSize: 11 }));
+  const eS = c2.series.push(am5xy.ColumnSeries.new(r2, { name: "Energia dnia (kWh/m²)", xAxis: x2, yAxis: yE, valueXField: "t", valueYField: "e", fill: am5.color(0xf6bd16), stroke: am5.color(0xf6bd16),
+    tooltip: am5.Tooltip.new(r2, { labelText: "Energia: [bold]{valueY.formatNumber('#.00')} kWh/m²[/]" }) }));
+  eS.columns.template.setAll({ width: am5.percent(80), strokeOpacity: 0, fillOpacity: .75 });
+  const uS = c2.series.push(am5xy.LineSeries.new(r2, { name: "Maks. UV dnia", xAxis: x2, yAxis: yU, valueXField: "t", valueYField: "uv", stroke: am5.color(0xd8dee9),
+    tooltip: am5.Tooltip.new(r2, { labelText: "Maks. UV: [bold]{valueY.formatNumber('#.0')}[/]" }) }));
+  uS.bullets.push(() => { const c = am5.Circle.new(r2, { radius: 2.5, strokeOpacity: 0 }); c.adapters.add("fill", (f, t) => am5.color(uvColor(t.dataItem?.get("valueY") ?? 0))); return am5.Bullet.new(r2, { sprite: c }); });
+  uS.strokes.template.setAll({ strokeWidth: 1, strokeOpacity: .5 });
+  const dd = dayList.map(d => ({ t: d.t, e: +d.e.toFixed(2), uv: d.uv })); eS.data.setAll(dd); uS.data.setAll(dd);
+  const lg = c2.children.push(am5.Legend.new(r2, { centerX: am5.p50, x: am5.p50, marginTop: 4 }));
+  lg.labels.template.set("fontSize", 12); lg.markers.template.setAll({ width: 12, height: 12 }); lg.data.setAll([eS, uS]);
 }
 
 // Wiatr przeliczany na jednostkę wybraną na kafelku (km/h lub m/s)
