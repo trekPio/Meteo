@@ -518,8 +518,7 @@ function buildWindRose(rows) {
     ROSE_RANGES.map(([d, l]) => `<button data-d="${d}" class="${d === roseRange ? "on" : ""}">${l}</button>`).join("")}</div></div>
     <div class="c" style="height:540px"></div>`;
   box.appendChild(el);
-  el.querySelectorAll(".seg button").forEach(b => b.onclick = () => { roseRange = +b.dataset.d; loadWindRose();
-buildRainYear(); });
+  el.querySelectorAll(".seg button").forEach(b => b.onclick = () => { roseRange = +b.dataset.d; loadWindRose(); });
   if (!n) { el.querySelector(".c").outerHTML = `<p style="color:var(--muted);margin:4px">Brak danych o wietrze w tym zakresie.</p>`; return; }
   const root = am5.Root.new(el.querySelector(".c")); roseRoot = root;
   root.setThemes([am5themes_Animated.new(root), am5themes_NordDark.new(root)]);
@@ -981,6 +980,7 @@ buildGauges();
 loadLatest().catch(err);
 rebuild();
 loadWindRose();
+buildRainYear();
 setInterval(refresh, 5 * 60 * 1000);
 </script>
 </body>
