@@ -55,15 +55,14 @@
   .ytabs .seg button.on { background:none; color:var(--fg); box-shadow:inset 0 -2px 0 var(--acc); }
   .ytabs.split { justify-content:space-between; }
   .cmw { position:relative; display:flex; align-items:center; }
-  .cmg { border:0; background:none; color:var(--muted); padding:6px 2px; cursor:pointer; font-size:18px; line-height:1; display:flex; }
-  .cmg:hover, .cmg.open { color:var(--fg); }
+  .cmg { border:0; background:none; color:var(--muted); padding:4px 2px; cursor:pointer; font-size:22px; line-height:1; display:flex; }
+  .cmg:hover, .cmg.open { color:#cfd6de; }
   .cmg i { transition:transform .25s; } .cmg.open i { transform:rotate(60deg); }
-  .cmenu { position:absolute; top:calc(100% + 2px); left:-8px; z-index:5; background:#222a33; border:1px solid #3b4552; border-radius:10px; padding:4px; display:flex; flex-direction:column; gap:2px; min-width:130px; box-shadow:0 6px 16px rgba(0,0,0,.35); }
+  .cmenu { position:absolute; top:calc(100% + 2px); left:-8px; z-index:5; background:#222a33; border:1px solid #3b4552; border-radius:10px; padding:2px 14px; display:flex; flex-direction:column; min-width:120px; box-shadow:0 6px 16px rgba(0,0,0,.35); }
   .cmenu[hidden] { display:none; }
-  .ytabs .cmenu button { display:flex; align-items:center; gap:8px; padding:6px 10px; border-radius:6px; color:var(--fg); box-shadow:none; text-align:left; }
-  .ytabs .cmenu button i { font-size:16px; color:var(--muted); }
-  .ytabs .cmenu button:hover { background:#2a323c; }
-  .ytabs .cmenu button.on { background:var(--acc); color:#fff; box-shadow:none; } .ytabs .cmenu button.on i { color:#fff; }
+  .ytabs .cmenu button { display:flex; align-items:center; gap:8px; padding:8px 0; color:var(--muted); background:none; border-radius:0; box-shadow:none; text-align:left; align-self:flex-start; }
+  .ytabs .cmenu button i { font-size:16px; }
+  .ytabs .cmenu button:hover, .ytabs .cmenu button.on { color:var(--fg); background:none; box-shadow:inset 0 -2px 0 var(--acc); }
   .ytabs .sep { width:1px; height:18px; background:var(--line); }
   .ytabs .ydot { width:9px; height:9px; border-radius:50%; display:inline-block; margin-right:6px; vertical-align:0; }
   .ytabs + .sel { margin-top:6px; }
