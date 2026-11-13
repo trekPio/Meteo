@@ -1261,8 +1261,8 @@ function nearMap(L) {
   const sc = Math.min((W - 2 * pad) / ((x1 - x0) * k), (H - 2 * pad - 30) / (y1 - y0));
   const ox = (W - (x1 - x0) * k * sc) / 2, oy = (H - (y1 - y0) * sc) / 2;
   const P = (s) => [ox + (s.lon - x0) * k * sc, oy + (y1 - s.lat) * sc];
-  // stacje bliżej niż ~3 km od siebie (np. Włocławek) – jeden znacznik, punkty rozsunięte na okręgu
-  const near3 = 3 * sc / 111, groups = [];
+  // stacje bliżej niż ~4 km od siebie (np. Włocławek) – jeden znacznik z liczbą stacji i średnią temperaturą
+  const near3 = 4 * sc / 111, groups = [];
   L.forEach(s => { const [x, y] = P(s); const g = groups.find(g => Math.hypot(g.x0 - x, g.y0 - y) < near3); if (g) g.m.push(s); else groups.push({ x0: x, y0: y, m: [s] }); });
   groups.forEach(g => { const pts = g.m.map(P); g.x = pts.reduce((a, p) => a + p[0], 0) / pts.length; g.y = pts.reduce((a, p) => a + p[1], 0) / pts.length; });
   const [cx, cy] = P(me), km = sc / 111;
@@ -1276,10 +1276,15 @@ function nearMap(L) {
   groups.forEach(G => {
     const n = G.m.length, lab = G.m[0].city || "";
     if (n === 1) { g += dot(G.m[0], G.x, G.y) + `<text x="${G.x}" y="${G.y + 26}" text-anchor="middle" fill="#8c98a6" font-size="13">${lab}</text>`; return; }
-    const R = 26 + n * 4;
-    g += `<circle cx="${G.x}" cy="${G.y}" r="${R + 16}" fill="#1b2129" stroke="#2a323c"/>`;
-    G.m.forEach((s, i) => { const a = -Math.PI / 2 + i * 2 * Math.PI / n, x = G.x + R * Math.cos(a), y = G.y + R * Math.sin(a) + 6; g += dot(s, x, y); });
-    g += `<text x="${G.x}" y="${G.y + R + 34}" text-anchor="middle" fill="#8c98a6" font-size="13">${lab} (${n})</text>`;
+    const avg = G.m.reduce((a, s) => a + s.temp, 0) / n, d = avg - me.temp, f = G.m.some(nearFull);
+    const city = Object.entries(G.m.reduce((a, s) => (a[s.city] = (a[s.city] || 0) + 1, a), {})).sort((a, b) => b[1] - a[1])[0][0];
+    const tip = G.m.map(s => `${s.city || ""}${s.street ? ", " + s.street : ""}: ${fmt(tConv(s.temp))} ${tLabel()}${s.wind != null ? " · wiatr " + nearWind(s.wind) + " " + wLabel() : ""}${s.rain_1h != null ? " · deszcz " + fmt(s.rain_1h) + " mm" : ""}`).join("\n");
+    g += `<g><title>${n} stacji, średnio ${fmt(tConv(avg))} ${tLabel()}\n${tip}</title>
+      <circle cx="${G.x}" cy="${G.y}" r="15" fill="${f ? "#5aa2f0" : "#3b4552"}" stroke="#12161b" stroke-width="2"/>
+      <circle cx="${G.x}" cy="${G.y}" r="19" fill="none" stroke="${f ? "#5aa2f0" : "#3b4552"}" stroke-opacity=".45" stroke-width="2"/>
+      <text x="${G.x}" y="${G.y + 5}" text-anchor="middle" fill="#fff" font-size="14" font-weight="600">${n}</text>
+      <text x="${G.x}" y="${G.y - 25}" text-anchor="middle" fill="${nearDc(d)}" font-size="15">śr. ${fmt(tConv(avg))}${tempUnit === "K" ? " K" : "°"}</text>
+      <text x="${G.x}" y="${G.y + 36}" text-anchor="middle" fill="#8c98a6" font-size="13">${city} (${n})</text></g>`;
   });
   g += `<g><circle cx="${cx}" cy="${cy}" r="11" fill="#a3be8c" stroke="#12161b" stroke-width="2"/>
     <text x="${cx}" y="${cy - 17}" text-anchor="middle" fill="#fff" font-size="16">${fmt(tConv(me.temp))}${tempUnit === "K" ? " K" : "°"}</text>
