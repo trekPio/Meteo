@@ -25,7 +25,7 @@ QUERY = f"""[out:json][timeout:120];
   way["waterway"="river"]({bb});
   way["waterway"~"^(stream|canal)$"]["name"]({bb});
   way["highway"~"^(motorway|trunk|primary|secondary)$"]({bb});
-  node["place"~"^(town|village)$"]({bb});
+  node["place"~"^(city|town|village)$"]({bb});
 );
 out geom;"""
 
