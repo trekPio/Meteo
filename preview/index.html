@@ -1,0 +1,1494 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PODGLĄD – sekcje – Stacja Meteo Nakonowo</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3/dist/tabler-icons.min.css">
+<script src="https://cdn.amcharts.com/lib/5/index.js"></script>
+<script src="https://cdn.amcharts.com/lib/5/xy.js"></script>
+<script src="https://cdn.amcharts.com/lib/5/radar.js"></script>
+<script src="https://cdn.amcharts.com/lib/5/themes/Animated.js"></script>
+<script src="https://cdn.amcharts.com/lib/5/themes/Dark.js"></script>
+<script src="https://cdn.amcharts.com/lib/5/themes/NordDark.js"></script>
+<script src="https://cdn.amcharts.com/lib/5/themes/Responsive.js"></script>
+<script src="https://cdn.amcharts.com/lib/5/locales/pl_PL.js"></script>
+<style>
+  :root { --bg:#12161b; --card:#1b2129; --fg:#e7ecf1; --muted:#8c98a6; --line:#2a323c; --acc:#5aa2f0; color-scheme:dark; }
+  .chead { display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:space-between; margin:0 4px 6px; }
+  .chead h2 { margin:0 !important; }
+  .seg { display:flex; gap:4px; }
+  .seg button { border:1px solid var(--line); background:transparent; color:var(--muted); padding:3px 10px; border-radius:6px; cursor:pointer; font:inherit; font-size:12px; }
+  .seg button.on { background:var(--acc); border-color:var(--acc); color:#fff; }
+  .sel { color:var(--muted); font-size:12px; margin:0 4px 4px; min-height:16px; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--fg); }
+  header.hdr { max-width:1160px; margin:16px auto 4px; padding:12px 16px 0; }
+  @media (max-width:1200px) { header.hdr { margin:16px 20px 4px; } }
+  .htop { display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between; }
+  .hid { display:flex; align-items:center; gap:12px; }
+  .hic { width:38px; height:38px; border-radius:10px; background:#222a33; border:1.5px solid #3b4552; display:flex; align-items:center; justify-content:center; flex:none; font-size:20px; color:#cfd6de; }
+  h1 { margin:0; font-size:19px; font-weight:600; line-height:1.2; }
+  .hst { display:flex; align-items:center; gap:6px; flex-wrap:wrap; color:var(--muted); font-size:12px; margin-top:2px; }
+  .hdot { width:7px; height:7px; border-radius:50%; background:#8c98a6; display:inline-block; }
+  .src { display:inline-flex; align-items:center; gap:4px; font-size:11px; padding:1px 7px; border-radius:6px; background:#2a323c; color:#cfd6de; }
+  .src.man { background:#3a3326; color:#ebcb8b; } .src:empty { display:none; }
+  .hfetch { display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border-radius:8px; border:1.5px solid #3b4552; background:#222a33; color:var(--fg); font:inherit; font-size:13px; cursor:pointer; }
+  .hfetch:hover { background:#2a323c; } .hfetch:disabled { cursor:default; opacity:.85; }
+  @keyframes hsp { to { transform:rotate(360deg); } } .hspin { animation:hsp 1s linear infinite; display:inline-block; }
+  main { max-width:1200px; margin:auto; padding:0 20px 40px; }
+  .box { background:var(--card); border:1px solid var(--line); border-radius:12px; }
+  .gauges { display:grid; grid-template-columns:repeat(auto-fill, minmax(210px, 1fr)); gap:12px; margin:12px 0; }
+  .gauge { padding:10px 10px 8px; display:flex; flex-direction:column; position:relative; }
+  .tchart { position:absolute; top:6px; right:8px; border:0; background:none; padding:2px; cursor:pointer; color:#ebcb8b; font-size:18px; line-height:1; opacity:.85; }
+  .tchart:hover { opacity:1; transform:scale(1.1); }
+  .chart { scroll-margin-top:12px; }
+  .duo { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 480px), 1fr)); gap:16px; align-items:stretch; }
+  .duo > div > .chart { height:100%; box-sizing:border-box; }
+  .ytabs { display:flex; justify-content:flex-end; gap:18px; border-top:1px solid var(--line); border-bottom:1px solid var(--line); margin:8px -10px 0; padding:0 14px; position:relative; }
+  .ytabs button { border:0; background:none; color:var(--muted); padding:8px 0; cursor:pointer; font:inherit; font-size:13px; }
+  .ytabs button:hover { color:var(--fg); }
+  .ytabs button.on { color:var(--fg); box-shadow:inset 0 -2px 0 var(--acc); }
+  .ytabs .seg { display:flex; gap:18px; align-items:center; }
+  .ytabs .seg button { border:0; background:none; color:var(--muted); padding:8px 0; border-radius:0; font-size:13px; }
+  .ytabs .seg button:hover { color:var(--fg); }
+  .ytabs .seg button.on { background:none; color:var(--fg); box-shadow:inset 0 -2px 0 var(--acc); }
+  .ytabs .sep { width:1px; height:18px; background:var(--line); }
+  .ytabs .ydot { width:9px; height:9px; border-radius:50%; display:inline-block; margin-right:6px; vertical-align:0; }
+  .ytabs + .sel { margin-top:6px; }
+  .typlay { display:flex; align-items:center; gap:12px; margin:0 8px; }
+  .typlay button { width:34px; height:34px; border-radius:50%; border:1.5px solid #3b4552; background:#222a33; color:var(--fg); font-size:16px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; }
+  .typlay input { flex:1; accent-color:var(--acc); }
+  .typlay span { color:var(--muted); font-size:13px; min-width:110px; text-align:right; }
+  .tylg { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:8px 8px 2px; font-size:12px; color:var(--muted); }
+  .tylg .bar { flex:0 0 200px; height:8px; border-radius:4px; background:linear-gradient(90deg,#3f7bd9 0%,#3f7bd9 16.7%,#88c0d0 33.3%,#ebcb8b 50%,#ebcb8b 83.3%,#bf616a 100%); }
+  .ymenu { position:absolute; top:38px; right:6px; z-index:5; background:#222a33; border:1px solid #3b4552; border-radius:10px; padding:4px; display:grid; grid-template-columns:repeat(3,1fr); gap:2px; min-width:180px; }
+  .ymenu button { padding:6px 10px; border-radius:6px; text-align:center; box-shadow:none !important; }
+  .ymenu button:hover { background:#2a323c; } .ymenu button.on { background:var(--acc); color:#fff; }
+  .rlg { display:flex; gap:14px; flex-wrap:wrap; margin:4px 6px 2px; font-size:12px; color:var(--muted); }
+  .rlg i { display:inline-block; width:10px; height:10px; border-radius:2px; vertical-align:-1px; margin-right:4px; }
+  .chart h2 { display:flex; align-items:center; gap:8px; }
+  .chart .home { width:24px; height:24px; border-radius:7px; border:1px solid #3b4552; background:#222a33; display:inline-flex; align-items:center; justify-content:center;
+                 color:var(--muted); font-size:15px; cursor:pointer; padding:0; flex:none; }
+  .chart .home:hover { background:#2a323c; color:#cfd6de; }
+  @keyframes chflash { 0% { box-shadow:0 0 0 2px #ebcb8b; } 100% { box-shadow:0 0 0 2px transparent; } }
+  .chart.flash { animation:chflash 1.6s ease-out; }
+  .gauge .wfoot { margin-top:auto; }   /* dolne wartości zawsze przy dolnej krawędzi */
+  .spark { height:18px; margin:auto 0 8px; padding-top:10px; box-sizing:content-box; }
+  .spark + .wfoot { margin-top:0; }
+  .gauge h2, .chart h2 { font-size:13px; margin:0 4px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+  .gauge .g { height:190px; }
+  .mrow { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:4px; }
+  .mic { width:66px; height:121px; flex:none; }
+  .vbox { position:relative; width:104px; height:84px; border:1.5px solid #3b4552; border-radius:14px; background:#222a33;
+          display:flex; align-items:center; justify-content:center; margin-right:16px; flex:none; }
+  .vval { font-size:34px; line-height:1; font-variant-numeric:tabular-nums; }
+  .wunit.clk { cursor:pointer; user-select:none; } .wunit.clk:hover { background:#4c5869; }
+  .wspd.ms { font-size:46px; }
+  .raintile { grid-column:span 2; }
+  .rrow { display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-top:4px; }
+  .rcloud { width:80px; height:80px; flex:none; }
+  .rboxes { display:flex; flex-direction:column; gap:10px; }
+  .rcap { font-size:11px; color:var(--muted); margin-bottom:4px; text-align:center; }
+  .vbox.rb { height:72px; }
+  .rls { min-width:200px; flex:1; max-width:260px; position:relative; }
+  .rr { display:flex; justify-content:space-between; gap:18px; font-size:14px; }
+  .rk { color:var(--muted); cursor:pointer; border-bottom:1px dotted #4c5869; } .rk:hover { color:#cfd6de; }
+  .rv { color:#a3be8c; font-variant-numeric:tabular-nums; } .rv small { color:var(--muted); font-size:11px; margin-left:3px; }
+  .rtrk { height:2px; border-radius:1px; background:#2a323c; margin:3px 0 7px; }
+  .rtrk i { display:block; height:100%; width:0; border-radius:1px; background:#a3be8c; opacity:.75; transition:width .6s; }
+  .rtip { position:absolute; left:-12px; right:-12px; z-index:5; background:#2e3640; border:1px solid #4c5869; border-radius:10px; padding:9px 11px; font-size:12.5px; line-height:1.5; }
+  .rtip:before { content:""; position:absolute; top:-6px; left:22px; width:10px; height:10px; background:#2e3640; border-left:1px solid #4c5869; border-top:1px solid #4c5869; transform:rotate(45deg); }
+  .rtip b { font-weight:600; } .rtip .m { color:var(--muted); display:block; margin-top:4px; }
+  .trend { position:absolute; top:7px; left:8px; font-size:15px; color:#6b7785; }
+  .trend.up { color:#c99a86; } .trend.down { color:#7fa7b8; }
+  .mm { display:grid; grid-template-columns:1fr 1fr; margin-top:8px; font-size:12px; color:var(--muted); text-align:center; }
+  .mm b { display:block; font-size:17px; font-weight:500; color:var(--fg); }
+  .mm b.cmin { color:#88c0d0; } .mm b.cmax { color:#d08770; }
+  .windtile { grid-column:span 2; }
+  @media (max-width:520px) { .windtile { grid-column:auto; } }
+  .wrow { display:flex; align-items:center; justify-content:space-around; gap:12px; }
+  .wcomp { width:160px; height:160px; flex:none; }
+  .wbox { position:relative; width:110px; height:110px; border:1.5px solid #3b4552; border-radius:14px; background:#222a33;
+          display:flex; flex-direction:column; align-items:center; justify-content:center; margin-right:18px; flex:none; }
+  .wunit { position:absolute; top:16px; right:0; transform:translateX(50%); background:#3b4552; color:#e7ecf1; font-size:12px; font-weight:600; padding:3px 8px; border-radius:7px; }
+  .wspd { font-size:64px; line-height:1; font-variant-numeric:tabular-nums; }
+  .wdir { font-size:13px; color:#cfd6de; margin-top:4px; }
+  .wfoot { display:grid; grid-template-columns:1fr 1fr; text-align:center; margin-top:6px; }
+  .wfoot .l { font-size:12px; color:var(--muted); }
+  .wfoot .v { font-size:22px; } .wfoot .v i, .wfoot small { color:var(--muted); font-size:13px; }
+  .cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(170px, 1fr)); gap:12px; margin:0 0 24px; }
+  .card { padding:12px 14px; }
+  .card .l { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
+  .card .v { font-size:24px; font-weight:600; margin-top:2px; font-variant-numeric:tabular-nums; }
+  .card .v small { font-size:14px; font-weight:400; color:var(--muted); margin-left:3px; }
+  .card .s { color:var(--muted); font-size:12px; }
+  .ranges { display:flex; gap:18px; border-top:1px solid var(--line); margin:12px -16px 0; padding:0 16px; overflow-x:auto; }
+  .ranges button { border:0; background:none; color:var(--muted); padding:9px 0; cursor:pointer; font:inherit; font-size:13px; }
+  .ranges button:hover { color:var(--fg); }
+  .ranges button.on { color:var(--fg); box-shadow:inset 0 -2px 0 var(--acc); }
+  .charts { display:grid; grid-template-columns:1fr; gap:16px; }
+  .chart { padding:12px 10px 6px; }
+  .chart .c { height:340px; }
+  .near { margin:0 0 16px; }
+  .near .nmap { display:block; width:100%; background:#161b21; border-radius:8px; margin-top:6px; }
+  .near table { width:100%; border-collapse:collapse; font-size:13px; font-variant-numeric:tabular-nums; margin-top:4px; }
+  .near th { color:var(--muted); font-weight:400; font-size:12px; text-align:right; padding:6px; border-bottom:1px solid var(--line); }
+  .near td { text-align:right; padding:6px; border-bottom:1px solid #222a33; }
+  .near td:nth-child(2), .near th:nth-child(2) { text-align:left; }
+  .near tr.me td { background:#222a33; }
+  .near .na { color:#6b7785; }
+  .near .rlg i { border-radius:50%; }
+  #err { color:#d9534f; }
+
+  header.hdr { position:sticky; top:0; z-index:50; margin-top:0; border-top-left-radius:0; border-top-right-radius:0; box-shadow:0 6px 16px rgba(0,0,0,.35); }
+  .secnav { display:flex; gap:22px; border-top:1px solid var(--line); margin:12px -16px 0; padding:0 16px; overflow-x:auto; }
+  .secnav button { border:0; background:none; color:var(--muted); padding:10px 0; cursor:pointer; font:inherit; font-size:14px; display:flex; align-items:center; gap:6px; white-space:nowrap; }
+  .secnav button i { font-size:17px; }
+  .secnav button:hover { color:var(--fg); }
+  .secnav button.on { color:var(--fg); box-shadow:inset 0 -2px 0 var(--acc); }
+  .mini { display:flex; flex-wrap:wrap; gap:4px 14px; font-size:13px; color:var(--muted); }
+  .mini b { color:var(--fg); font-weight:500; }
+  .mini i { font-size:15px; vertical-align:-2px; margin-right:3px; }
+  .pane:not(.on) { height:0; overflow:hidden; visibility:hidden; }
+  .pane { padding-top:12px; }
+  .pbar { padding:0 16px; margin-bottom:16px; }
+  .pbar .ranges { margin:0 -16px; border-top:0; }
+  .pbar .ptitle { display:flex; justify-content:space-between; align-items:center; padding:10px 0 0; color:var(--muted); font-size:13px; }
+  .prevtag { position:fixed; right:10px; bottom:10px; z-index:60; background:#bf616a; color:#fff; font-size:12px; padding:4px 10px; border-radius:6px; }
+</style>
+</head>
+<body>
+<header class="box hdr">
+  <div class="htop">
+    <div class="hid">
+      <div class="hic"><i class="ti ti-cloud" aria-hidden="true"></i></div>
+      <div>
+        <h1>Stacja Meteo Nakonowo – centrum</h1>
+        <div class="hst"><span class="hdot" id="hDot"></span><span id="updated">Ładowanie…</span><span class="src" id="hSrc"></span></div>
+      </div>
+    </div>
+    <button class="hfetch" id="hFetch" title="Uruchom pobranie danych ze stacji"><i class="ti ti-refresh" id="hFi" aria-hidden="true"></i><span id="hFt">Pobierz teraz</span></button>
+  </div>
+  <div class="mini" id="mini"></div>
+  <nav class="secnav" id="secnav">
+    <button data-p="teraz"><i class="ti ti-gauge"></i>Teraz</button>
+    <button data-p="wykresy"><i class="ti ti-chart-line"></i>Wykresy</button>
+    <button data-p="klimat"><i class="ti ti-calendar-stats"></i>Klimat</button>
+    <button data-p="okolica"><i class="ti ti-map-pin"></i>Okolica</button>
+  </nav>
+</header>
+<main>
+  <div id="err"></div>
+  <div class="pane" data-p="teraz">
+    <div class="gauges" id="gauges"></div>
+    <div class="cards" id="cards"></div>
+  </div>
+  <div class="pane" data-p="wykresy">
+    <div class="box pbar"><div class="ptitle"><span>Zakres wykresów</span></div>
+      <div class="ranges">
+        <button data-d="1" class="on">24 h</button><button data-d="3">3 dni</button>
+        <button data-d="7">7 dni</button><button data-d="30">30 dni</button><button data-d="365">Rok</button>
+      </div></div>
+    <div class="charts" id="charts"></div>
+  </div>
+  <div class="pane" data-p="klimat">
+    <div class="duo"><div id="rose"></div><div id="rainYear"></div></div>
+    <div id="compare" style="margin-top:16px"></div>
+    <div id="tempYear" style="margin-top:16px"></div>
+  </div>
+  <div class="pane" data-p="okolica">
+    <section class="box chart near" id="ch-near"></section>
+  </div>
+</main>
+<div class="prevtag">Podgląd – układ z sekcjami</div>
+
+<script>
+// ---------- Konfiguracja ----------
+// Klucze z API Ecowitt (pierwszy istniejący z listy zostaje użyty)
+const K = {
+  temp: ["outdoor.temperature"], feels: ["outdoor.feels_like", "outdoor.app_temp"],
+  dew: ["outdoor.dew_point"], hum: ["outdoor.humidity"],
+  tin: ["indoor.temperature"], hin: ["indoor.humidity"],
+  press: ["pressure.relative", "pressure.absolute"],
+  wind: ["wind.wind_speed"], gust: ["wind.wind_gust"], dir: ["wind.wind_direction"],
+  rainDay: ["rainfall.daily", "rainfall_piezo.daily"], rainRate: ["rainfall.rain_rate", "rainfall_piezo.rain_rate"],
+  rainState: ["rainfall_piezo.state", "rainfall.state"], rainEvent: ["rainfall_piezo.event", "rainfall.event"],
+  rain1h: ["rainfall_piezo.1_hour", "rainfall.1_hour"], rain24h: ["rainfall_piezo.24_hours", "rainfall.24_hours"],
+  rainWeek: ["rainfall.weekly", "rainfall_piezo.weekly"], rainMonth: ["rainfall.monthly", "rainfall_piezo.monthly"],
+  rainYear: ["rainfall.yearly", "rainfall_piezo.yearly"],
+  solar: ["solar_and_uvi.solar"], uvi: ["solar_and_uvi.uvi"],
+};
+// Wykresy: seria = [klucz, nazwa, kolor, typ?]; s2 = seria na prawej osi
+const CHARTS = [
+  { t: "Temperatura (°C)", nord: true, s: [["temp", "Temperatura", "#e8684a"], ["feels", "Odczuwalna", "#f6bd16"], ["dew", "Punkt rosy", "#29a3a3"]] },
+  { t: "Wilgotność (%)", s: [["hum", "Na zewnątrz", "#5b8ff9"], ["hin", "Wewnątrz", "#9270ca"]] },
+  { t: "Ciśnienie (hPa)", s: [["press", "Ciśnienie", "#8c98a6"]] },
+  { t: "Wiatr", wind: true, s: [["wind", "Prędkość", "#4caf50"], ["gust", "Porywy", "#a5d6a7"]] },
+  { t: "Opad (mm)", rain: true, s: [["rainDay", "Opad", "#5e9fd8"]] },
+  { t: "Słońce (W/m²) i UV", s: [["solar", "Promieniowanie", "#f6bd16"]], s2: [["uvi", "UV", "#e8684a"]] },
+];
+const DIRS = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
+const DARK = true;   // cała strona w ciemnym motywie
+
+// ---------- Pomocnicze ----------
+const pick = (o, name) => { for (const k of K[name]) if (o[k] != null) return o[k]; return null; };
+const fmt = (v, d = 1) => v == null ? "–" : v.toLocaleString("pl-PL", { maximumFractionDigits: d, minimumFractionDigits: d });
+// Dane czytane prosto z repozytorium (raw), więc nie czekają na przebudowę GitHub Pages
+const RAW = "https://raw.githubusercontent.com/trekPio/Meteo/main/";
+const get = async (p) => {
+  const url = (p.startsWith("data/") ? RAW : "") + p + "?v=" + Date.now();
+  let r = await fetch(url, { cache: "no-store" }).catch(() => null);
+  if ((!r || !r.ok) && p.startsWith("data/")) r = await fetch("../" + p + "?v=" + Date.now());   // zapas: kopia na Pages
+  if (!r.ok) throw new Error(p + ": " + r.status); return r.json();
+};
+const err = (e) => document.getElementById("err").textContent = e ? "Nie udało się wczytać danych: " + e.message : "";
+
+function newRoot(el) {
+  const root = am5.Root.new(el);
+  root.setThemes([am5themes_Animated.new(root), ...(DARK ? [am5themes_Dark.new(root)] : [])]);
+  root.locale = am5locales_pl_PL;
+  root.numberFormatter.set("numberFormat", "#,###.#");
+  return root;
+}
+
+// ---------- Kafelki: temperatura, wilgotność, ciśnienie (SVG) ----------
+const FG = "#e7ecf1", TILE_BG = "#1b2129", COLD_BELOW = 10;   // poniżej 10 °C szronek, od 10 °C słoneczko
+
+// Kolor temperatury: ≤ −10 głęboki niebieski → 0 jasny niebieski → 10 żółty … 30 żółty → 40 czerwony
+const hexRgb = (h) => [1, 3, 5].map(i => parseInt(h.substr(i, 2), 16));
+const mixHex = (a, b, f) => { const A = hexRgb(a), B = hexRgb(b); return "#" + A.map((x, i) => Math.round(x + (B[i] - x) * f).toString(16).padStart(2, "0")).join(""); };
+function tempColor(t) {
+  const D = "#3f7bd9", B = "#88c0d0", Y = "#ebcb8b", R = "#bf616a";
+  if (t <= -10) return D; if (t < 0) return mixHex(D, B, (t + 10) / 10); if (t === 0) return B;
+  if (t < 10) return mixHex(B, Y, t / 10); if (t <= 30) return Y; if (t < 40) return mixHex(Y, R, (t - 30) / 10); return R;
+}
+function flakeAt(cx, cy, R, w, c) {
+  const b = R * 0.33; let g = "";
+  for (let a = 0; a < 180; a += 60) g += `<g transform="rotate(${a} ${cx} ${cy})"><line x1="${cx}" y1="${cy - R}" x2="${cx}" y2="${cy + R}"/><path d="M${cx - b} ${cy - R + b * 0.4} l${b} ${b * 0.85} l${b} ${-b * 0.85} M${cx - b} ${cy + R - b * 0.4} l${b} ${-b * 0.85} l${b} ${b * 0.85}" fill="none"/></g>`;
+  return `<g stroke="${c}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${g}</g>`;
+}
+function iconThermo(t) {
+  t = t ?? 0;
+  const lvl = Math.max(0, Math.min(1, (t + 20) / 60)), top = (160 - lvl * 116).toFixed(1), col = tempColor(t);
+  let sc = ""; for (let i = 0; i < 9; i++) { const y = 44 + i * 15, l = i % 4 === 0 ? 26 : 15; sc += `<line x1="80" y1="${y}" x2="${80 + l}" y2="${y}"/>`; }
+  const sun = (w, c) => { let g = `<circle cx="32" cy="34" r="11" fill="${c}" stroke="${c}" stroke-width="${w - 6}"/>`;
+    for (let a = 0; a < 360; a += 45) { const [x1, y1] = polarC(a, 17, 32, 34), [x2, y2] = polarC(a, 25, 32, 34); g += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}"/>`; }
+    return `<g stroke="${c}" stroke-width="${w}" stroke-linecap="round">${g}</g>`; };
+  let sym = t < COLD_BELOW ? flakeAt(32, 34, 24, 16, TILE_BG) + flakeAt(32, 34, 24, 6, col) : sun(16, TILE_BG) + sun(6, col);
+  if (t <= 0) sym += [[19, 70], [8, 90], [30, 90]].map(([x, y]) => flakeAt(x, y, 10.5, 8, TILE_BG) + flakeAt(x, y, 10.5, 3, col)).join("");   // mróz: trzy małe szronki
+  return `<g fill="none" stroke="${FG}" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M41 157 V66"/><path d="M63 157 V40 a11 11 0 0 0 -16 -10"/><path d="M41 157 A28 28 0 1 0 63 157"/></g>
+    <rect x="47" y="${top}" width="10" height="${(186 - top).toFixed(1)}" rx="5" fill="${col}"/>
+    <circle cx="52" cy="182" r="16" fill="${col}"/>
+    <g stroke="${FG}" stroke-width="3.5" stroke-linecap="round">${sc}</g>${sym}`;
+}
+function iconDrop(h) {
+  const d = "M60 40 C60 40 28 92 28 120 a32 32 0 0 0 64 0 C92 92 60 40 60 40Z", y = (152 - Math.max(0, Math.min(100, h ?? 0)) / 100 * 112).toFixed(1);
+  return `<defs><clipPath id="dropClip"><path d="${d}"/></clipPath></defs>
+    <rect x="0" y="${y}" width="120" height="220" fill="#5e81ac" clip-path="url(#dropClip)"/>
+    <path d="${d}" fill="none" stroke="${FG}" stroke-width="6" stroke-linejoin="round"/>
+    <path d="M44 124 a17 17 0 0 0 12 16" fill="none" stroke="${FG}" stroke-width="4" stroke-linecap="round"/>`;
+}
+function iconBaro(p, trend) {
+  let tk = ""; for (let a = -120; a <= 120; a += 40) { const [x1, y1] = polarC(a, 30, 60, 116), [x2, y2] = polarC(a, 23, 60, 116); tk += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}"/>`; }
+  const ang = -120 + Math.max(0, Math.min(1, ((p ?? 960) - 960) / 90)) * 240;
+  const tr = trend > 0.5 ? `<path d="M60 50 l-12 16 h24 z" fill="#a3be8c"/>` : trend < -0.5 ? `<path d="M60 66 l-12 -16 h24 z" fill="#a3be8c"/>` : `<circle cx="60" cy="58" r="6" fill="#a3be8c"/>`;
+  return `<circle cx="60" cy="116" r="38" fill="none" stroke="${FG}" stroke-width="6"/>
+    <g stroke="#8c98a6" stroke-width="3" stroke-linecap="round">${tk}</g>
+    <line x1="60" y1="116" x2="60" y2="88" stroke="${FG}" stroke-width="5" stroke-linecap="round" transform="rotate(${ang.toFixed(1)} 60 116)"/>
+    <circle cx="60" cy="116" r="6" fill="${FG}"/>${tr}`;
+}
+const polarC = (a, r, cx, cy) => { const t = (a - 90) * Math.PI / 180; return [cx + r * Math.cos(t), cy + r * Math.sin(t)]; };
+
+// Trend: zmiana względem pomiaru sprzed ok. 1 h (poniżej progu = stała)
+const TREND_EPS = { temp: 0.3, hum: 2, press: 0.5, wind: 0.8 };
+function setTrend(key, rows, cur) {
+  const el = document.getElementById("tr-" + key); if (!el) return;
+  const now = rows.length ? rows[rows.length - 1].t : Date.now() / 1000;
+  const old = rows.filter(r => r.t <= now - 3000 && pick(r, key) != null).pop();
+  let cls = "ti-arrow-narrow-right", st = "", tip = "stała";
+  if (old && cur != null) {
+    const d = cur - pick(old, key);
+    if (d > TREND_EPS[key]) { cls = "ti-arrow-up-right"; st = "up"; tip = "rośnie"; }
+    else if (d < -TREND_EPS[key]) { cls = "ti-arrow-down-right"; st = "down"; tip = "maleje"; }
+  } else { el.className = "ti trend"; el.title = ""; return; }
+  el.className = `ti trend ${cls} ${st}`; el.title = `Trend (1 h): ${tip}`;
+}
+
+const TILES = [["temp", "Temperatura", "°C", 1], ["hum", "Wilgotność", "%", 0], ["press", "Ciśnienie", "hPa", 1]];
+
+function buildGauges() {
+  const box = document.getElementById("gauges");
+  for (const [key, title, unit] of TILES) {
+    const el = document.createElement("section"); el.className = "box gauge mtile"; el.dataset.chart = key;
+    el.innerHTML = `<h2>${title}</h2>
+      <div class="mrow"><svg id="ic-${key}" viewBox="0 0 120 220" class="mic" aria-hidden="true"></svg>
+        <div class="vbox"><span class="wunit${key === "temp" ? " clk" : ""}" id="u-${key}"${key === "temp" ? ' title="Kliknij: °C / K"' : ""}>${unit}</span><i class="ti trend" id="tr-${key}"></i><span class="vval" id="v-${key}">–</span></div></div>
+      <div class="spark" id="sp-${key}"></div>
+      <div class="wfoot">
+        <div><div class="l">Min · <span id="tmin-${key}">–</span></div><div class="v"><i class="ti ti-arrow-down"></i> <span id="min-${key}">–</span> <small class="u2-${key}">${unit}</small></div></div>
+        <div><div class="l">Maks · <span id="tmax-${key}">–</span></div><div class="v"><i class="ti ti-arrow-up"></i> <span id="max-${key}">–</span> <small class="u2-${key}">${unit}</small></div></div></div>`;
+    box.appendChild(el);
+  }
+  buildWindTile(box); box.lastElementChild.dataset.chart = "wind";
+  buildRainTile(box); box.lastElementChild.dataset.chart = "rainDay";
+  // Ikonka wykresu w prawym górnym rogu kafelka: przewija do odpowiedniego wykresu
+  box.querySelectorAll(".gauge[data-chart]").forEach(t => {
+    const b = document.createElement("button"); b.className = "tchart"; b.title = "Pokaż wykres";
+    b.innerHTML = '<i class="ti ti-activity" aria-hidden="true"></i>';
+    b.onclick = (e) => { e.stopPropagation(); goToChart(t.dataset.chart); };
+    t.appendChild(b);
+  });
+  document.getElementById("u-temp").onclick = () => { tempUnit = tempUnit === "C" ? "K" : "C"; saveUnits(); redrawTiles(); };
+  document.getElementById("u-wind").onclick = () => {
+    windUnit = windUnit === "kmh" ? "ms" : "kmh"; saveUnits(); redrawTiles();
+    rebuild(); loadWindRose();   // wykres wiatru i róża w tej samej jednostce co kafelek
+  };
+}
+
+// ---------- Kafelek opadów ----------
+// [klucz, etykieta, klucz normy, opis, rodzaj normy]
+const RAIN_ROWS = [
+  ["rainEvent", "Zdarzenie", "event", "Suma opadu od początku bieżącego epizodu deszczu. Stacja zeruje ją po dłuższej przerwie bez opadu.", "max"],
+  ["rain1h", "Ostatnia 1 h", "1_hour", "Suma opadu z ostatnich 60 minut (okno przesuwne, nie pełna godzina zegarowa).", "max"],
+  ["rain24h", "Ostatnie 24 h", "24_hours", "Suma opadu z ostatnich 24 godzin (okno przesuwne).", "max"],
+  ["rainWeek", "Tydzień", "weekly", "Suma opadu od początku bieżącego tygodnia.", "avg"],
+  ["rainMonth", "Miesiąc", "monthly", "Suma opadu od 1. dnia bieżącego miesiąca.", "avg"],
+  ["rainYear", "Rok", "yearly", "Suma opadu od początku bieżącego roku.", "sum"],
+];
+const RAIN_NORM_TXT = {
+  event: "największe zdarzenie", "1_hour": "największy opad godzinowy", "24_hours": "największa suma dobowa",
+  weekly: "średnia suma tygodniowa", monthly: "średnia suma miesięczna", yearly: "suma",
+};
+let rainTip = null, rainInfo = {}, rainPinned = false;
+
+function buildRainTile(box) {
+  const el = document.createElement("section"); el.className = "box gauge raintile";
+  el.innerHTML = `<h2>Opady</h2>
+  <div class="rrow">
+    <svg id="rCloud" viewBox="0 0 120 120" class="rcloud" aria-hidden="true"></svg>
+    <div class="rboxes">
+      <div><div class="rcap">Intensywność</div><div class="vbox rb"><span class="wunit">mm/h</span><span class="vval" id="rRate">–</span></div></div>
+      <div><div class="rcap">Dziś</div><div class="vbox rb"><span class="wunit">mm</span><span class="vval" id="rDay">–</span></div></div>
+    </div>
+    <div class="rls" id="rList">
+      <div class="rr" style="margin-bottom:9px"><span class="rk" data-k="state">Stan</span><span class="rv" id="rState">–</span></div>
+      ${RAIN_ROWS.map(([k, l]) => `<div class="rr"><span class="rk" data-k="${k}">${l}</span><span class="rv"><span id="rv-${k}">–</span><small>mm</small></span></div><div class="rtrk"><i id="rb-${k}"></i></div>`).join("")}
+    </div>
+  </div>`;
+  box.appendChild(el);
+  const ls = el.querySelector("#rList");
+  // Dymek: najechanie pokazuje, zjechanie chowa; kliknięcie przypina (drugie kliknięcie / klik obok odpina)
+  const show = (k) => {
+    closeRainTip();
+    const row = k.parentElement, info = rainInfo[k.dataset.k];
+    rainTip = document.createElement("div"); rainTip.className = "rtip"; rainTip.dataset.k = k.dataset.k;
+    rainTip.innerHTML = k.dataset.k === "state"
+      ? `<b>Stan</b><br>Czy czujnik wykrywa opad w tej chwili: Pada albo Brak opadu.`
+      : `<b>${info.label}</b><br>${info.desc}${info.bar ? `<span class="m">${info.bar}</span>` : ""}`;
+    rainTip.style.top = (row.offsetTop + row.offsetHeight + 6) + "px";
+    ls.appendChild(rainTip);
+  };
+  ls.querySelectorAll(".rk").forEach(k => {
+    k.addEventListener("mouseenter", () => { if (!rainPinned) show(k); });
+    k.addEventListener("mouseleave", () => { if (!rainPinned) closeRainTip(); });
+    k.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (rainPinned && rainTip && rainTip.dataset.k === k.dataset.k) { rainPinned = false; closeRainTip(); return; }
+      show(k); rainPinned = true;
+    });
+  });
+  document.addEventListener("click", () => { rainPinned = false; closeRainTip(); });
+}
+function closeRainTip() { if (rainTip) { rainTip.remove(); rainTip = null; } }
+
+function updateRainTile(v, norms) {
+  const raining = (pick(v, "rainState") ?? 0) > 0 || (pick(v, "rainRate") ?? 0) > 0;
+  const drop = raining ? "#88c0d0" : "#3b4552";
+  document.getElementById("rCloud").innerHTML =
+    `<path d="M34 76 h54 a18 18 0 0 0 0 -36 a26 26 0 0 0 -50 -6 a20 20 0 0 0 -4 42 z" fill="none" stroke="${FG}" stroke-width="6" stroke-linejoin="round"/>
+     <g stroke="${drop}" stroke-width="5" stroke-linecap="round"><line x1="42" y1="86" x2="37" y2="98"/><line x1="60" y1="96" x2="55" y2="108"/><line x1="78" y1="86" x2="73" y2="98"/></g>`;
+  document.getElementById("rRate").textContent = fmt(pick(v, "rainRate"));
+  document.getElementById("rDay").textContent = fmt(pick(v, "rainDay"));
+  const st = document.getElementById("rState");
+  st.textContent = raining ? "Pada" : "Brak opadu"; st.style.color = raining ? "#88c0d0" : "var(--muted)";
+  for (const [k, label, nk, desc, kind] of RAIN_ROWS) {
+    const val = pick(v, k), n = norms[nk];
+    document.getElementById("rv-" + k).textContent = fmt(val, k === "rainYear" ? 1 : 1);
+    const pct = val != null && n > 0 ? Math.min(100, Math.round(val / n * 100)) : 0;
+    document.getElementById("rb-" + k).style.width = pct + "%";
+    const per = kind === "sum" ? " z ostatnich 12 miesięcy" : " z ostatnich 12 miesięcy";
+    rainInfo[k] = { label, desc, bar: n > 0 && val != null
+      ? `Pasek: wartość ÷ ${RAIN_NORM_TXT[nk]}${per} (${fmt(n)} mm) = ${Math.round(val / n * 100)}%${val > n ? " (powyżej normy pasek zostaje pełny)" : ""}.`
+      : "Pasek: brak danych historycznych do porównania." };
+  }
+}
+
+// Domek przy wykresach: powrót do nagłówka strony
+document.addEventListener("click", (e) => {
+  if (e.target.closest(".chart .home")) { showPane("teraz"); window.scrollTo({ top: 0, behavior: "smooth" }); }
+});
+
+function goToChart(key) {
+  const el = document.getElementById("ch-" + key);
+  if (!el) return;
+  const pn = el.closest(".pane"); if (pn) showPane(pn.dataset.p);
+  const hh = document.querySelector("header.hdr").offsetHeight;
+  requestAnimationFrame(() => window.scrollTo({ top: el.getBoundingClientRect().top + scrollY - hh - 12, behavior: "smooth" }));
+  el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash");
+}
+
+// ---------- Jednostki przełączane kliknięciem (zapamiętywane w przeglądarce) ----------
+let tempUnit = "C", windUnit = "kmh", lastTiles = null;
+try { const u = JSON.parse(localStorage.getItem("meteoUnits") || "{}"); tempUnit = u.t || "C"; windUnit = u.w || "kmh"; } catch (e) {}
+const saveUnits = () => { try { localStorage.setItem("meteoUnits", JSON.stringify({ t: tempUnit, w: windUnit })); } catch (e) {} };
+const redrawTiles = () => { if (lastTiles) { updateGauges(...lastTiles.g); updateWindTile(...lastTiles.w); } if (typeof NEAR !== "undefined" && NEAR.me) drawNear(); };
+const tConv = (c) => c == null ? null : tempUnit === "K" ? c + 273.15 : c;
+const tLabel = () => tempUnit === "K" ? "K" : "°C";
+
+// Linia trendu dnia (od północy): cienka, rozciągnięta na szerokość kafelka
+function drawSpark(id, data, col) {
+  const el = document.getElementById(id); if (!el) return;
+  if (data.length < 2) { el.innerHTML = ""; return; }
+  const w = 200, h = 18, mn = Math.min(...data), mx = Math.max(...data), r = mx - mn || 1;
+  const d = data.map((v, i) => (i ? "L" : "M") + (i / (data.length - 1) * w).toFixed(1) + " " + (h - 2 - (v - mn) / r * (h - 4)).toFixed(1)).join(" ");
+  el.innerHTML = `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" width="100%" height="100%"><path d="${d} L${w} ${h} L0 ${h}Z" fill="${col}" opacity=".08"/><path d="${d}" fill="none" stroke="${col}" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg>`;
+}
+
+function updateGauges(v, rows = []) {
+  const hm = (t) => new Date(t * 1000).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" });
+  const f = (x, d) => fmt(x, d).replace("-", "−");
+  document.getElementById("u-temp").textContent = tLabel();
+  document.getElementById("v-temp").style.fontSize = tempUnit === "K" ? "27px" : "";
+  document.querySelectorAll(".u2-temp").forEach(e => e.textContent = tLabel());
+  for (const [key, , , dec] of TILES) {
+    const cv = key === "temp" ? tConv : (x) => x;
+    const val = cv(pick(v, key));
+    document.getElementById("v-" + key).textContent = val == null ? "–" : f(val, key === "press" ? 0 : dec);
+    let mn = null, mx = null;
+    for (const r of rows) { const x = pick(r, key); if (x == null) continue;
+      if (!mn || x < mn.x) mn = { x, t: r.t }; if (!mx || x > mx.x) mx = { x, t: r.t }; }
+    if (mn) { document.getElementById("min-" + key).textContent = f(cv(mn.x), dec); document.getElementById("tmin-" + key).textContent = hm(mn.t); }
+    if (mx) { document.getElementById("max-" + key).textContent = f(cv(mx.x), dec); document.getElementById("tmax-" + key).textContent = hm(mx.t); }
+  }
+  for (const [key] of TILES) setTrend(key, rows, pick(v, key));
+  setTrend("wind", rows, pick(v, "wind"));
+  const SPARK_COL = { temp: "#d08770", hum: "#5e81ac", press: "#a3be8c" };
+  for (const [key] of TILES) drawSpark("sp-" + key, rows.map(r => pick(r, key)).filter(x => x != null), SPARK_COL[key]);
+  document.getElementById("ic-temp").innerHTML = iconThermo(pick(v, "temp"));
+  document.getElementById("ic-hum").innerHTML = iconDrop(pick(v, "hum"));
+  // tendencja ciśnienia: zmiana względem pomiaru sprzed ~3 h
+  const now = rows.length ? rows[rows.length - 1].t : Date.now() / 1000;
+  const old = rows.filter(r => r.t <= now - 3 * 3600 && pick(r, "press") != null).pop();
+  const p = pick(v, "press");
+  document.getElementById("ic-press").innerHTML = iconBaro(p, old && p != null ? p - pick(old, "press") : 0);
+}
+
+// ---------- Kafelek wiatru (SVG, km/h) ----------
+const kmh = (ms) => ms == null ? null : windUnit === "ms" ? fmt(ms, 1) : Math.round(ms * 3.6);
+const wLabel = () => windUnit === "ms" ? "m/s" : "km/h";
+const polar = (a, r) => { const t = (a - 90) * Math.PI / 180; return [100 + r * Math.cos(t), 100 + r * Math.sin(t)]; };
+
+function buildWindTile(box) {
+  let minor = "";
+  for (let i = 0; i < 16; i++) {
+    if (i % 4 === 0) continue;
+    const [x1, y1] = polar(i * 22.5, 67.5), [x2, y2] = polar(i * 22.5, i % 2 ? 73 : 76);
+    minor += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}"/>`;
+  }
+  const el = document.createElement("section"); el.className = "box gauge windtile";
+  el.innerHTML = `<h2>Wiatr <span id="wAge" style="text-transform:none;letter-spacing:0;font-weight:400"></span></h2>
+  <div class="wrow">
+    <svg viewBox="0 0 200 200" class="wcomp" role="img" aria-label="Kierunek wiatru">
+      <circle cx="100" cy="100" r="66" fill="none" stroke="#3b4552" stroke-width="3"/>
+      <g stroke="#6b7785" stroke-width="1.5">${minor}</g>
+      <g stroke="#cfd6de" stroke-width="3" stroke-linecap="round">
+        <line x1="100" y1="16" x2="100" y2="28"/><line x1="184" y1="100" x2="172" y2="100"/>
+        <line x1="100" y1="184" x2="100" y2="172"/><line x1="16" y1="100" x2="28" y2="100"/></g>
+      <text x="100" y="11" text-anchor="middle" font-size="11" fill="#8c98a6">N</text>
+      <path id="wArc" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round"/>
+      <g id="wArrow" style="transition:transform .8s ease;transform-box:view-box;transform-origin:100px 100px">
+        <path d="M100 58 L126 134 L100 118 L74 134 Z" fill="none" stroke="#fff" stroke-width="4" stroke-linejoin="round"/></g>
+    </svg>
+    <div class="wbox"><span class="wunit clk" id="u-wind" title="Kliknij: km/h / m/s">km/h</span><i class="ti trend" id="tr-wind"></i><span id="wSpd" class="wspd">–</span><span id="wDir" class="wdir"></span></div>
+  </div>
+  <div class="wfoot">
+    <div><div class="l">Porywy</div><div class="v"><i class="ti ti-wind"></i> <span id="wGust">–</span> <small class="u2-wind">km/h</small></div></div>
+    <div><div class="l">Maks. dziś</div><div class="v"><i class="ti ti-trending-up"></i> <span id="wMax">–</span> <small class="u2-wind">km/h</small></div></div>
+  </div>`;
+  box.appendChild(el);
+}
+
+function updateWindTile(v, t, maxToday) {
+  document.getElementById("u-wind").textContent = wLabel();
+  document.querySelectorAll(".u2-wind").forEach(e => e.textContent = wLabel());
+  const d = pick(v, "dir");
+  document.getElementById("wSpd").textContent = kmh(pick(v, "wind")) ?? "–";
+  document.getElementById("wSpd").classList.toggle("ms", windUnit === "ms");
+  document.getElementById("wGust").textContent = kmh(pick(v, "gust")) ?? "–";
+  document.getElementById("wMax").textContent = kmh(maxToday) ?? "–";
+  const age = Math.round((Date.now() / 1000 - t) / 60);
+  document.getElementById("wAge").textContent = "· " + (age < 1 ? "teraz" : age + " min temu");
+  if (d == null) return;
+  document.getElementById("wDir").textContent = `${DIRS[Math.round(d / 22.5) % 16]} (${Math.round(d)}°)`;
+  document.getElementById("wArrow").style.transform = `rotate(${(d + 180) % 360}deg)`;   // strzałka: dokąd wieje
+  const [x1, y1] = polar(d - 14, 66), [x2, y2] = polar(d + 14, 66);                      // łuk: skąd wieje
+  document.getElementById("wArc").setAttribute("d", `M${x1.toFixed(1)} ${y1.toFixed(1)} A66 66 0 0 1 ${x2.toFixed(1)} ${y2.toFixed(1)}`);
+}
+
+
+// ---------- Kafelki ----------
+function updateCards(v) {
+  const cards = [
+    ["Odczuwalna", fmt(pick(v, "feels")), "°C", "punkt rosy " + fmt(pick(v, "dew")) + " °C"],
+    ["Słońce", fmt(pick(v, "solar"), 0), "W/m²", "UV " + fmt(pick(v, "uvi"))],
+    ["W domu", fmt(pick(v, "tin")), "°C", "wilgotność " + fmt(pick(v, "hin"), 0) + " %"],
+  ].filter(c => c[1] !== "–");
+  document.getElementById("cards").innerHTML = cards.map(([l, val, u, s]) =>
+    `<div class="box card"><div class="l">${l}</div><div class="v">${val}<small>${u}</small></div><div class="s">${s}</div></div>`).join("");
+}
+
+
+// ---------- Róża wiatrów (radialny histogram, motyw Nord Dark) ----------
+let rose = null;   // {series, xAxis}
+
+function roseData(rows) {
+  const data = DIRS.map(d => ({ dir: d, n: 0, sum: 0, max: 0 })); let n = 0;
+  for (const r of rows) {
+    const d = pick(r, "dir"), w = pick(r, "wind");
+    if (d == null || w == null) continue;
+    const o = data[Math.round(d / 22.5) % 16];
+    o.n++; o.sum += w; o.max = Math.max(o.max, pick(r, "gust") ?? w); n++;
+  }
+  data.forEach(o => { o.pct = n ? +(o.n / n * 100).toFixed(1) : 0; o.avg = o.n ? +windConv(o.sum / o.n).toFixed(1) : 0; o.max = +windConv(o.max).toFixed(1); });
+  return { data, n };
+}
+
+let roseRange = 365, roseRoot = null;   // domyślnie cały rok
+const ROSE_RANGES = [[1, "24 h"], [7, "7 dni"], [30, "30 dni"], [365, "Rok"]];
+
+async function loadWindRose() {
+  try { buildWindRose(await loadRows(roseRange)); } catch (e) { err(e); }
+}
+
+function buildWindRose(rows) {
+  if (roseRoot) roseRoot.dispose(); roseRoot = null; rose = null;
+  const box = document.getElementById("rose"); box.innerHTML = "";
+  const { data, n } = roseData(rows);
+  const el = document.createElement("section"); el.className = "box chart";
+  el.innerHTML = `<h2><button class="home" title="Do góry strony" aria-label="Do góry strony"><i class="ti ti-home"></i></button>Roczny rozkład wiatrów</h2><div class="ytabs"><div class="seg">${
+    ROSE_RANGES.map(([d, l]) => `<button data-d="${d}" class="${d === roseRange ? "on" : ""}">${l}</button>`).join("")}</div></div>
+    <div class="c" style="height:540px"></div>`;
+  box.appendChild(el);
+  el.querySelectorAll(".seg button").forEach(b => b.onclick = () => { roseRange = +b.dataset.d; loadWindRose(); });
+  if (!n) { el.querySelector(".c").outerHTML = `<p style="color:var(--muted);margin:4px">Brak danych o wietrze w tym zakresie.</p>`; return; }
+  const root = am5.Root.new(el.querySelector(".c")); roseRoot = root;
+  root.setThemes([am5themes_Animated.new(root), am5themes_NordDark.new(root)]);
+  root.locale = am5locales_pl_PL;
+  // N na środku górnego sektora: obrót o pół sektora (360/16/2 = 11,25°)
+  const chart = root.container.children.push(am5radar.RadarChart.new(root, {
+    panX: false, panY: false, startAngle: -101.25, endAngle: 258.75, radius: am5.percent(88), innerRadius: am5.percent(35),
+  }));
+  const xr = am5radar.AxisRendererCircular.new(root, { minGridDistance: 10 });
+  xr.labels.template.setAll({ radius: 10, fontSize: 13, textType: "adjusted" });
+  xr.grid.template.set("forceHidden", true);
+  const xAxis = chart.xAxes.push(am5xy.CategoryAxis.new(root, { categoryField: "dir", renderer: xr }));
+  xAxis.data.setAll(data);
+  const yr = am5radar.AxisRendererRadial.new(root, {});
+  yr.labels.template.setAll({ fontSize: 10, centerX: am5.p50 });
+  const yAxis = chart.yAxes.push(am5xy.ValueAxis.new(root, { min: 0, numberFormat: "#'%'", renderer: yr }));
+  const series = chart.series.push(am5radar.RadarColumnSeries.new(root, {
+    name: "Wiatr", xAxis, yAxis, valueYField: "pct", categoryXField: "dir",
+    tooltip: am5.Tooltip.new(root, { labelText: `[bold]{categoryX}[/]: {valueY.formatNumber('#.0')}% czasu\nśrednio {avg} ${wLabel()} · maks. {max} ${wLabel()}` }),
+  }));
+  series.columns.template.setAll({ width: am5.percent(80), strokeOpacity: 0, fillOpacity: 1, cornerRadius: 10,
+    tooltipText: `[bold]{categoryX}[/]: {valueY.formatNumber('#.0')}% czasu\nśrednio {avg} ${wLabel()} · maks. {max} ${wLabel()}`, cursorOverStyle: "pointer" });
+  // Kolor dla każdego słupka z palety motywu
+  series.columns.template.adapters.add("fill", (fill, target) => chart.get("colors").getIndex(series.columns.indexOf(target)));
+  series.data.setAll(data);
+  series.appear(800); chart.appear(800, 100);
+  rose = { series, xAxis };
+}
+
+function updateWindRose(rows) {
+  if (!rose) return;
+  const { data } = roseData(rows);
+  rose.xAxis.data.setAll(data); rose.series.data.setAll(data);
+}
+
+// ---------- Tryby kursora (wykres temperatury) ----------
+const CURSOR_MODES = [["zoom", "Zoom"], ["select", "Select"], ["pan", "Pan"], ["none", "None"]];
+let cursorMode = "pan";
+
+function setupCursorModes(el, chart, cursor, getX, rows, key) {
+  const sel = el.querySelector(".sel");
+  const apply = (m) => {
+    cursorMode = m;
+    cursor.set("behavior", { zoom: "zoomX", select: "selectX", pan: "none", none: "none" }[m]);
+    chart.set("panX", m === "pan");
+    el.querySelectorAll(".seg button").forEach(b => b.classList.toggle("on", b.dataset.m === m));
+    sel.textContent = { zoom: "Przeciągnij po wykresie, aby przybliżyć wybrany fragment.",
+      select: "Zaznacz fragment, aby zobaczyć statystyki temperatury.",
+      pan: "Przeciągnij wykres, aby go przesunąć; kółko myszy przybliża.", none: "" }[m];
+  };
+  el.querySelectorAll(".seg button").forEach(b => b.onclick = () => apply(b.dataset.m));
+  cursor.events.on("selectended", () => {
+    if (cursorMode !== "select") return;
+    const x = getX(), toT = (p) => x.positionToDate(x.toAxisPosition(p)).getTime() / 1000;
+    let a = toT(cursor.getPrivate("downPositionX")), b = toT(cursor.getPrivate("positionX"));
+    if (a > b) [a, b] = [b, a];
+    const v = rows.filter(r => r.t >= a && r.t <= b).map(r => pick(r, key)).filter(x => x != null);
+    if (!v.length) { sel.textContent = "Brak danych w zaznaczeniu."; return; }
+    const f = (t) => new Date(t * 1000).toLocaleString("pl-PL", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+    sel.textContent = `${f(a)} – ${f(b)}:  min ${fmt(Math.min(...v))} °C · maks ${fmt(Math.max(...v))} °C · średnio ${fmt(v.reduce((s, x) => s + x, 0) / v.length)} °C`;
+  });
+  apply(cursorMode);
+}
+
+// ---------- Roczny rozkład opadów (radar: tygodnie, dni z opadem, miesiące) ----------
+let rainYearRoot = null, rainYearSel = null, yMenu = null;
+const PL_MONTHS = ["Sty", "Lut", "Mar", "Kwi", "Maj", "Cze", "Lip", "Sie", "Wrz", "Paź", "Lis", "Gru"];
+const PL_WD = ["Pn", "Wt", "Śr", "Cz", "Pt", "So", "Nd"];
+
+async function rainDailyTotals(year, idx) {
+  const months = (idx.months || []).filter(m => m.startsWith(year + "-"));
+  const rows = (await Promise.all(months.map(m => get(`data/hourly/${m}.json`).catch(() => [])))).flat();
+  const days = {};
+  for (const r of rows) {
+    const v = pick(r, "rainDay"); if (v == null) continue;
+    const d = new Date(r.t * 1000).toLocaleDateString("sv-SE", { timeZone: "Europe/Warsaw" });
+    days[d] = Math.max(days[d] || 0, v);
+  }
+  return days;
+}
+
+async function buildRainYear(year) {
+  const host = document.getElementById("rainYear");
+  const idx = await get("data/index.json").catch(() => ({ months: [] }));
+  const years = [...new Set((idx.months || []).map(m => +m.slice(0, 4)))].sort();
+  if (!years.length) { host.innerHTML = ""; return; }
+  year = year ?? rainYearSel ?? years[years.length - 1]; rainYearSel = year;
+  const recent = years.slice(-5), older = years.slice(0, -5).reverse();
+  host.innerHTML = `<section class="box chart" id="ch-rainYear">
+    <h2><button class="home" title="Do góry strony" aria-label="Do góry strony"><i class="ti ti-home"></i></button>Roczny rozkład opadów</h2>
+    <div class="ytabs">${older.length ? `<button data-old="1" class="${older.includes(year) ? "on" : ""}">${older.includes(year) ? year : "Starsze"} ▾</button>` : ""}${
+      recent.map(y => `<button data-y="${y}" class="${y === year ? "on" : ""}">${y}</button>`).join("")}</div>
+    <div class="c" style="height:540px"></div></section>`;
+  const tabs = host.querySelector(".ytabs");
+  tabs.querySelectorAll("[data-y]").forEach(b => b.onclick = () => buildRainYear(+b.dataset.y));
+  const ob = tabs.querySelector("[data-old]");
+  if (ob) ob.onclick = (e) => {
+    e.stopPropagation();
+    if (yMenu) { yMenu.remove(); yMenu = null; return; }
+    yMenu = document.createElement("div"); yMenu.className = "ymenu";
+    yMenu.innerHTML = older.map(y => `<button class="${y === year ? "on" : ""}">${y}</button>`).join("");
+    yMenu.querySelectorAll("button").forEach(x => x.onclick = (ev) => { ev.stopPropagation(); yMenu = null; buildRainYear(+x.textContent); });
+    tabs.appendChild(yMenu);
+  };
+  document.addEventListener("click", () => { if (yMenu) { yMenu.remove(); yMenu = null; } }, { once: true });
+
+  const days = await rainDailyTotals(year, idx);
+  if (rainYearRoot) rainYearRoot.dispose();
+  const root = am5.Root.new(host.querySelector(".c")); rainYearRoot = root;
+  const t = am5.Theme.new(root); t.rule("Label").set("fontSize", 10); t.rule("Grid").set("strokeOpacity", 0.06);
+  root.setThemes([am5themes_Animated.new(root), am5themes_NordDark.new(root), t, am5themes_Responsive.new(root)]);
+  root.locale = am5locales_pl_PL; root.locale.firstDayOfWeek = 1;
+  root.dateFormatter.setAll({ dateFormat: "w", dateFields: ["valueX"] });
+
+  const weekly = [], daily = [], monthSum = Array(12).fill(0); let total = 0;
+  for (let i = 0; i < 53; i++) {
+    const d = new Date(year, 0, 1 + i * 7); am5.time.round(d, "week", 1, 1);
+    weekly.push({ date: d.getTime(), rain: 0 });
+  }
+  for (const [d, v] of Object.entries(days)) {
+    if (v <= 0) continue;
+    const date = new Date(d + "T12:00:00");
+    let wn = am5.utils.getWeek(date);
+    if (wn === 1 && date.getMonth() === 11) wn = 53;
+    if (wn > 50 && date.getMonth() === 0) wn = 1;
+    weekly[wn - 1].rain = +(weekly[wn - 1].rain + v).toFixed(1);
+    total += v; monthSum[date.getMonth()] += v;
+    daily.push({ date: date.getTime(), day: PL_WD[(date.getDay() + 6) % 7], rain: +v.toFixed(1),
+                 title: date.toLocaleDateString("pl-PL", { day: "numeric", month: "long" }) });
+  }
+
+  const chart = root.container.children.push(am5radar.RadarChart.new(root, {
+    panX: false, panY: false, wheelX: "panX", wheelY: "zoomX",
+    innerRadius: am5.percent(20), radius: am5.percent(78), startAngle: 270 - 170, endAngle: 270 + 170,
+  }));
+  chart.radarContainer.children.push(am5.Label.new(root, {
+    text: `[fontSize:0.9em]Opad w ${year}:[/]\n[fontSize:1.6em]${fmt(total)} mm[/]\n[fontSize:0.85em]${daily.length} dni z opadem[/]`,
+    textAlign: "center", centerX: am5.p50, centerY: am5.p50,
+  }));
+  chart.set("cursor", am5radar.RadarCursor.new(root, { behavior: "zoomX" })).lineY.set("visible", false);
+  const dr = am5radar.AxisRendererCircular.new(root, { minGridDistance: 26 });
+  dr.labels.template.setAll({ radius: 30, textType: "radial", centerY: am5.p50 });
+  const dateAxis = chart.xAxes.push(am5xy.DateAxis.new(root, {
+    baseInterval: { timeUnit: "week", count: 1 }, renderer: dr,
+    min: new Date(year, 0, 1).getTime(), max: new Date(year + 1, 0, 1).getTime(),
+  }));
+  dateAxis.get("dateFormats")["week"] = "d MMM";
+  const rr = am5radar.AxisRendererRadial.new(root, { axisAngle: 90, radius: am5.percent(60), innerRadius: am5.percent(20), inversed: true, minGridDistance: 20 });
+  rr.labels.template.setAll({ centerX: am5.p50, minPosition: 0.05, maxPosition: 0.95 });
+  const rainAxis = chart.yAxes.push(am5xy.ValueAxis.new(root, { renderer: rr, min: 0, numberFormat: "# ' mm'" }));
+  const wr = am5radar.AxisRendererRadial.new(root, { axisAngle: 90, innerRadius: am5.percent(60), radius: am5.percent(100), minGridDistance: 14 });
+  wr.labels.template.setAll({ centerX: am5.p50 });
+  const weekAxis = chart.yAxes.push(am5xy.CategoryAxis.new(root, { categoryField: "day", renderer: wr }));
+
+  const cols = chart.series.push(am5radar.RadarColumnSeries.new(root, {
+    calculateAggregates: true, xAxis: dateAxis, yAxis: rainAxis, valueYField: "rain", valueXField: "date",
+    tooltip: am5.Tooltip.new(root, { labelText: "Tydzień {valueX}: [bold]{valueY.formatNumber('#.0')} mm[/]" }),
+  }));
+  cols.columns.template.set("strokeOpacity", 0);
+  cols.set("heatRules", [{ target: cols.columns.template, key: "fill", min: am5.color(0xa8d8ea), max: am5.color(0x2f5fb3), dataField: "valueY" }]);
+  const bubbles = chart.series.push(am5radar.RadarLineSeries.new(root, {
+    calculateAggregates: true, xAxis: dateAxis, yAxis: weekAxis, baseAxis: dateAxis,
+    categoryYField: "day", valueXField: "date", valueField: "rain", maskBullets: false,
+  }));
+  bubbles.strokes.template.set("forceHidden", true);
+  const ct = am5.Template.new({});
+  bubbles.bullets.push(() => am5.Bullet.new(root, { sprite: am5.Circle.new(root, {
+    fill: am5.color(0x88c0d0), fillOpacity: 0.85, tooltipText: "{title}: [bold]{value.formatNumber('#.0')} mm[/]" }, ct) }));
+  bubbles.set("heatRules", [{ target: ct, min: 2, max: 13, dataField: "value", key: "radius" }]);
+  cols.data.setAll(weekly); weekAxis.data.setAll(PL_WD.map(day => ({ day }))); bubbles.data.setAll(daily);
+
+  const cs = am5.ColorSet.new(root, {});
+  PL_MONTHS.forEach((name, m) => {
+    const range = dateAxis.createAxisRange(dateAxis.makeDataItem({ above: true }));
+    const from = new Date(year, m, 1).getTime(), to = new Date(year, m + 1, 1).getTime();
+    range.set("value", from); range.set("endValue", to);
+    const fill = range.get("axisFill");
+    fill.setAll({ toggleKey: "active", cursorOverStyle: "pointer", fill: cs.getIndex(m * 2), visible: true, dRadius: 25, innerRadius: -25,
+                  tooltipText: `${name}: ${fmt(monthSum[m])} mm` });
+    range.get("grid").set("visible", false);
+    range.get("label").setAll({ fill: am5.color(0x1b2129), textType: "circular", radius: 8,
+      text: monthSum[m] > 0 ? `${name} · ${Math.round(monthSum[m])}` : name });
+    fill.events.on("click", (ev) => { if (ev.target.get("active")) dateAxis.zoom(0, 1); else dateAxis.zoomToValues(from, to); });
+  });
+  bubbles.appear(800); cols.appear(800); chart.appear(800, 100);
+}
+
+// ---------- Porównanie temperatur (osobna oś dat dla każdego roku) ----------
+const CMP = { years: [], sel: [], kind: "temp", mode: "pan", root: null, chart: null, cursor: null, axes: [], cache: {}, idx: null };
+const CMP_COL = [0xd08770, 0x88c0d0, 0xa3be8c, 0xb48ead, 0xebcb8b];
+const cmpColor = (y) => CMP_COL[CMP.years.indexOf(y) % CMP_COL.length];
+
+async function cmpDaily(year) {   // średnia, min i maks dobowa z agregatów godzinowych
+  if (CMP.cache[year]) return CMP.cache[year];
+  const months = (CMP.idx.months || []).filter(m => m.startsWith(year + "-"));
+  const rows = (await Promise.all(months.map(m => get(`data/hourly/${m}.json`).catch(() => [])))).flat();
+  const acc = {};
+  for (const r of rows) {
+    const d = new Date(r.t * 1000).toLocaleDateString("sv-SE", { timeZone: "Europe/Warsaw" });
+    const a = acc[d] || (acc[d] = { temp: [0, 0, 1e9, -1e9], feels: [0, 0, 1e9, -1e9] });
+    for (const k of ["temp", "feels"]) { const v = pick(r, k); if (v == null) continue;
+      a[k][0] += v; a[k][1]++; a[k][2] = Math.min(a[k][2], v); a[k][3] = Math.max(a[k][3], v); }
+  }
+  const out = { temp: [], feels: [] };
+  for (const d of Object.keys(acc).sort()) for (const k of ["temp", "feels"]) {
+    const [sum, n, mn, mx] = acc[d][k]; if (!n) continue;
+    out[k].push({ t: new Date(d + "T12:00:00").getTime(), v: +(sum / n).toFixed(1), lo: +mn.toFixed(1), hi: +mx.toFixed(1) });
+  }
+  return (CMP.cache[year] = out);
+}
+
+async function buildCompare() {
+  const host = document.getElementById("compare");
+  CMP.idx = await get("data/index.json").catch(() => ({ months: [] }));
+  CMP.years = [...new Set((CMP.idx.months || []).map(m => +m.slice(0, 4)))].sort();
+  if (!CMP.years.length) return;
+  if (!CMP.sel.length) CMP.sel = CMP.years.slice(-2);
+  host.innerHTML = `<section class="box chart" id="ch-compare">
+    <h2><button class="home" title="Do góry strony" aria-label="Do góry strony"><i class="ti ti-home"></i></button>Porównanie temperatur</h2>
+    <div class="ytabs">
+      <div class="seg" id="cmpKind"><button data-k="temp">Normalna</button><button data-k="feels">Odczuwalna</button></div><span class="sep"></span>
+      <div class="seg" id="cmpCur">${CURSOR_MODES.map(([m, l]) => `<button data-m="${m}">${l}</button>`).join("")}</div><span class="sep"></span>
+      <div class="seg" id="cmpYears" title="Lata do porównania (maks. 3)">${CMP.years.map(y => `<button data-y="${y}"><i class="ydot"></i>${y}</button>`).join("")}</div>
+    </div>
+    <div class="sel" id="cmpInfo"></div><div class="c" style="height:440px"></div></section>`;
+  const paint = () => {
+    host.querySelectorAll("#cmpKind button").forEach(b => b.classList.toggle("on", b.dataset.k === CMP.kind));
+    host.querySelectorAll("#cmpCur button").forEach(b => b.classList.toggle("on", b.dataset.m === CMP.mode));
+    host.querySelectorAll("#cmpYears button").forEach(b => { const y = +b.dataset.y, on = CMP.sel.includes(y);
+      b.classList.toggle("on", on); b.querySelector(".ydot").style.background = on ? "#" + cmpColor(y).toString(16).padStart(6, "0") : "#3b4552"; });
+    document.getElementById("cmpInfo").textContent = { zoom: "Przeciągnij po wykresie, aby przybliżyć ten sam okres we wszystkich latach.",
+      select: "Zaznacz okres, aby porównać średnie temperatury lat.", pan: "Przeciągnij wykres, aby go przesunąć; kółko myszy przybliża.", none: "" }[CMP.mode];
+  };
+  host.querySelectorAll("#cmpKind button").forEach(b => b.onclick = () => { CMP.kind = b.dataset.k; paint(); cmpDraw(); });
+  host.querySelectorAll("#cmpCur button").forEach(b => b.onclick = () => {
+    CMP.mode = b.dataset.m; paint();
+    CMP.cursor.set("behavior", { zoom: "zoomX", select: "selectX", pan: "none", none: "none" }[CMP.mode]); CMP.chart.set("panX", CMP.mode === "pan");
+  });
+  host.querySelectorAll("#cmpYears button").forEach(b => b.onclick = () => {
+    const y = +b.dataset.y;
+    if (CMP.sel.includes(y)) { if (CMP.sel.length > 1) CMP.sel = CMP.sel.filter(x => x !== y); }
+    else CMP.sel = [...CMP.sel, y].sort().slice(-3);
+    paint(); cmpDraw();
+  });
+  paint(); cmpDraw();
+}
+
+async function cmpDraw() {
+  const host = document.querySelector("#ch-compare .c"); if (!host) return;
+  const data = {}; for (const y of CMP.sel) data[y] = (await cmpDaily(y))[CMP.kind];
+  if (CMP.root) CMP.root.dispose();
+  const root = am5.Root.new(host); CMP.root = root;
+  root.setThemes([am5themes_Animated.new(root), am5themes_NordDark.new(root), am5themes_Responsive.new(root)]);
+  root.locale = am5locales_pl_PL;
+  root.dateFormatter.setAll({ dateFormat: "d MMM", dateFields: ["valueX"] });
+  const chart = root.container.children.push(am5xy.XYChart.new(root, {
+    panX: CMP.mode === "pan", panY: false, wheelX: "panX", wheelY: "zoomX", pinchZoomX: true, paddingLeft: 0, layout: root.verticalLayout,
+  }));
+  CMP.chart = chart;
+  const cursor = chart.set("cursor", am5xy.XYCursor.new(root, { behavior: { zoom: "zoomX", select: "selectX", pan: "none", none: "none" }[CMP.mode] }));
+  cursor.lineY.set("visible", false); CMP.cursor = cursor;
+  const yAxis = chart.yAxes.push(am5xy.ValueAxis.new(root, { renderer: am5xy.AxisRendererY.new(root, {}), numberFormat: "#'°C'" }));
+  yAxis.get("renderer").grid.template.setAll({ strokeDasharray: [5, 5] });
+  const axes = []; CMP.axes = axes;
+  CMP.sel.forEach((y, i) => {
+    const col = am5.color(cmpColor(y));
+    const xr = am5xy.AxisRendererX.new(root, { minGridDistance: 70, opposite: i === 1 });
+    xr.labels.template.setAll({ fill: col, forceHidden: i > 1, minPosition: 0.02, maxPosition: 0.97 });
+    xr.grid.template.setAll({ forceHidden: i > 0, strokeDasharray: [5, 5] });
+    const xAxis = chart.xAxes.push(am5xy.DateAxis.new(root, {
+      baseInterval: { timeUnit: "day", count: 1 }, maxDeviation: 0, renderer: xr,
+      min: new Date(y, 0, 1).getTime(), max: new Date(y, 11, 31, 23, 59).getTime(),
+      tooltip: am5.Tooltip.new(root, {}), tooltipDateFormat: "d MMM yyyy",
+    }));
+    xAxis.get("tooltip").get("background").setAll({ fill: col });
+    axes.push(xAxis);
+    const band = chart.series.push(am5xy.LineSeries.new(root, { xAxis, yAxis, valueXField: "t", valueYField: "hi", openValueYField: "lo", fill: col, stroke: col }));
+    band.strokes.template.set("forceHidden", true); band.fills.template.setAll({ visible: true, fillOpacity: 0.08 });
+    band.data.setAll(data[y]);
+    const s = chart.series.push(am5xy.LineSeries.new(root, {
+      name: String(y), xAxis, yAxis, valueXField: "t", valueYField: "v", stroke: col, fill: col,
+      tooltip: am5.Tooltip.new(root, { labelText: `${y}: [bold]{valueY.formatNumber('#.0')}°C[/] (min {lo} / maks {hi})` }),
+    }));
+    s.strokes.template.set("strokeWidth", 1.5);
+    s.data.setAll(data[y]);
+  });
+  const sync = () => axes.slice(1).forEach(a => { a.set("start", axes[0].get("start")); a.set("end", axes[0].get("end")); });
+  if (axes.length > 1) { axes[0].on("start", sync); axes[0].on("end", sync); }
+  const legend = chart.children.push(am5.Legend.new(root, { centerX: am5.p50, x: am5.p50, marginTop: 6 }));
+  legend.labels.template.set("fontSize", 12); legend.markers.template.setAll({ width: 12, height: 12 });
+  legend.data.setAll(chart.series.values.filter(s => s.get("name")));
+  const sb = am5.Scrollbar.new(root, { orientation: "horizontal", height: 8, marginTop: 6 });
+  chart.set("scrollbarX", sb); chart.bottomAxesContainer.children.push(sb);
+  cursor.events.on("selectended", () => {   // Select: średnie lat w zaznaczonym okresie (ten sam zakres dni w każdym roku)
+    if (CMP.mode !== "select" || !axes.length) return;
+    const a0 = axes[0], p1 = cursor.getPrivate("downPositionX"), p2 = cursor.getPrivate("positionX");
+    const d1 = a0.positionToDate(a0.toAxisPosition(Math.min(p1, p2))), d2 = a0.positionToDate(a0.toAxisPosition(Math.max(p1, p2)));
+    const key = (t) => t.getMonth() * 100 + t.getDate(), k1 = key(d1), k2 = key(d2);
+    const parts = CMP.sel.map(y => {
+      const v = data[y].filter(p => { const k = key(new Date(p.t)); return k >= k1 && k <= k2; }).map(p => p.v);
+      return v.length ? `${y}: śr. ${fmt(v.reduce((a, x) => a + x, 0) / v.length)}°C` : `${y}: brak danych`;
+    });
+    const f = (d) => d.toLocaleDateString("pl-PL", { day: "numeric", month: "short" });
+    document.getElementById("cmpInfo").textContent = `${f(d1)} – ${f(d2)}:  ${parts.join("  ·  ")}`;
+  });
+  chart.appear(600, 100);
+}
+
+// ---------- Roczne zestawienie temperatury (Radar Timeline: dni wokół koła, miesiące, odtwarzanie) ----------
+const TY = { years: [], year: null, kind: "temp", cache: {}, idx: null, root: null, series: null, mean: null, xAxis: null, center: null, timer: null };
+const TY_MS = ["Sty", "Lut", "Mar", "Kwi", "Maj", "Cze", "Lip", "Sie", "Wrz", "Paź", "Lis", "Gru"];
+const TY_MONTHS = ["styczeń", "luty", "marzec", "kwiecień", "maj", "czerwiec", "lipiec", "sierpień", "wrzesień", "październik", "listopad", "grudzień"];
+const TY_DAYS = [];   // 365 kategorii (bez 29 lutego): "01-01" … "12-31"
+for (let m = 0; m < 12; m++) { const n = new Date(2025, m + 1, 0).getDate(); for (let d = 1; d <= n; d++) TY_DAYS.push({ cat: `${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`, m, d }); }
+
+async function tyStats(y) {
+  if (TY.cache[y]) return TY.cache[y];
+  const months = (TY.idx.months || []).filter(m => m.startsWith(y + "-"));
+  const rows = (await Promise.all(months.map(m => get(`data/hourly/${m}.json`).catch(() => [])))).flat();
+  const acc = {};
+  for (const r of rows) {
+    const d = new Date(r.t * 1000).toLocaleDateString("sv-SE", { timeZone: "Europe/Warsaw" }).slice(5);
+    const a = acc[d] || (acc[d] = { temp: [0, 0, 1e9, -1e9], feels: [0, 0, 1e9, -1e9] });
+    for (const k of ["temp", "feels"]) { const v = pick(r, k); if (v == null) continue;
+      a[k][0] += v; a[k][1]++; a[k][2] = Math.min(a[k][2], v); a[k][3] = Math.max(a[k][3], v); }
+  }
+  return (TY.cache[y] = acc);
+}
+
+async function buildTempYear() {
+  const host = document.getElementById("tempYear");
+  TY.idx = await get("data/index.json").catch(() => ({ months: [] }));
+  TY.years = [...new Set((TY.idx.months || []).map(m => +m.slice(0, 4)))].sort();
+  if (!TY.years.length) return;
+  TY.year = TY.year ?? TY.years[TY.years.length - 1];
+  host.innerHTML = `<section class="box chart" id="ch-tempYear">
+    <h2><button class="home" title="Do góry strony" aria-label="Do góry strony"><i class="ti ti-home"></i></button>Roczne zestawienie temperatury</h2>
+    <div class="ytabs">
+      <div class="seg" id="tyKind"><button data-k="temp">Normalna</button><button data-k="feels">Odczuwalna</button></div><span class="sep"></span>
+      <div class="seg" id="tyYears">${TY.years.map(y => `<button data-y="${y}">${y}</button>`).join("")}</div>
+    </div>
+    <div class="c" style="height:640px"></div>
+    <div class="typlay"><button id="tyPlay" title="Odtwórz kolejne miesiące"><i class="ti ti-player-play"></i></button>
+      <input type="range" id="tySlider" min="0" max="12" step="1" value="12"><span id="tyLbl">Cały rok</span></div>
+    <div class="tylg"><span>−20 °C</span><span class="bar"></span><span>40 °C</span><span>· słupek = zakres min–maks dnia, kolor = średnia dobowa · kliknij miesiąc, aby go przybliżyć</span></div>
+  </section>`;
+  const paint = () => {
+    host.querySelectorAll("#tyKind button").forEach(b => b.classList.toggle("on", b.dataset.k === TY.kind));
+    host.querySelectorAll("#tyYears button").forEach(b => b.classList.toggle("on", +b.dataset.y === TY.year));
+  };
+  const slider = host.querySelector("#tySlider"), btn = host.querySelector("#tyPlay");
+  const stop = () => { if (TY.timer) { clearInterval(TY.timer); TY.timer = null; btn.innerHTML = '<i class="ti ti-player-play"></i>'; } };
+  host.querySelectorAll("#tyKind button").forEach(b => b.onclick = () => { TY.kind = b.dataset.k; paint(); tyUpdate(+slider.value); });
+  host.querySelectorAll("#tyYears button").forEach(b => b.onclick = () => { TY.year = +b.dataset.y; paint(); stop(); slider.value = 12; tyUpdate(12); });
+  slider.oninput = () => { stop(); tyUpdate(+slider.value); };
+  btn.onclick = () => {
+    if (TY.timer) return stop();
+    let m = 0; slider.value = 0; tyUpdate(0); btn.innerHTML = '<i class="ti ti-player-pause"></i>';
+    TY.timer = setInterval(() => { m++; if (m > 12) return stop(); slider.value = m; tyUpdate(m); }, 900);
+  };
+  paint(); tyBuildChart(host.querySelector(".c")); tyUpdate(12);
+}
+
+function tyBuildChart(el) {
+  if (TY.root) TY.root.dispose();
+  const root = am5.Root.new(el); TY.root = root;
+  const t = am5.Theme.new(root); t.rule("Label").set("fontSize", 11); t.rule("Grid").set("strokeOpacity", 0.07);
+  root.setThemes([am5themes_Animated.new(root), am5themes_NordDark.new(root), t, am5themes_Responsive.new(root)]);
+  const chart = root.container.children.push(am5radar.RadarChart.new(root, {
+    panX: false, panY: false, wheelX: "panX", wheelY: "zoomX", innerRadius: am5.percent(28), radius: am5.percent(86),
+    startAngle: -84, endAngle: 264,   // przerwa u góry na oś temperatury
+  }));
+  chart.set("cursor", am5radar.RadarCursor.new(root, { behavior: "zoomX" })).lineY.set("visible", false);
+  const xr = am5radar.AxisRendererCircular.new(root, { minGridDistance: 12 });
+  xr.labels.template.set("forceHidden", true); xr.grid.template.set("forceHidden", true);
+  const xAxis = chart.xAxes.push(am5xy.CategoryAxis.new(root, { categoryField: "cat", renderer: xr })); TY.xAxis = xAxis;
+  const yr = am5radar.AxisRendererRadial.new(root, { axisAngle: -90, minGridDistance: 26 });
+  yr.labels.template.setAll({ centerX: am5.p50, fontSize: 10 });
+  const yAxis = chart.yAxes.push(am5xy.ValueAxis.new(root, { renderer: yr, min: -25, max: 40, strictMinMax: true, numberFormat: "#'°'" }));
+  const zero = yAxis.createAxisRange(yAxis.makeDataItem({ value: 0 }));
+  zero.get("grid").setAll({ stroke: am5.color(0x88c0d0), strokeOpacity: 0.45, strokeDasharray: [4, 4] });
+  const series = chart.series.push(am5radar.RadarColumnSeries.new(root, { xAxis, yAxis, categoryXField: "cat", valueYField: "hi", openValueYField: "lo" }));
+  series.columns.template.setAll({ width: am5.percent(75), strokeOpacity: 0, cornerRadius: 2,
+    tooltipText: "[bold]{label}[/]\nśrednio {mean}°C\nmin {lo}°C · maks {hi}°C" });
+  series.columns.template.adapters.add("fill", (fill, target) => { const m = target.dataItem?.dataContext?.mean; return m == null ? fill : am5.color(tempColor(m)); });
+  TY.series = series;
+  const mean = chart.series.push(am5radar.RadarLineSeries.new(root, { xAxis, yAxis, categoryXField: "cat", valueYField: "mean", stroke: am5.color(0xe7ecf1), connectEnds: false }));
+  mean.strokes.template.setAll({ strokeWidth: 1, strokeOpacity: 0.5 }); TY.mean = mean;
+  const cs = am5.ColorSet.new(root, {});
+  TY_MS.forEach((name, m) => {
+    const first = TY_DAYS.find(d => d.m === m).cat, last = [...TY_DAYS].reverse().find(d => d.m === m).cat;
+    const range = xAxis.createAxisRange(xAxis.makeDataItem({ above: true, category: first, endCategory: last }));
+    const fill = range.get("axisFill");
+    fill.setAll({ visible: true, fill: cs.getIndex(m * 2), fillOpacity: 1, dRadius: 22, innerRadius: -22, cursorOverStyle: "pointer", toggleKey: "active", tooltipText: name });
+    range.get("grid").set("forceHidden", true);
+    range.get("label").setAll({ forceHidden: false, text: name, fill: am5.color(0x1b2129), textType: "circular", radius: 7, fontSize: 11 });
+    fill.events.on("click", (ev) => { if (ev.target.get("active")) xAxis.zoomToCategories(first, last); else xAxis.zoom(0, 1); });
+  });
+  TY.center = chart.radarContainer.children.push(am5.Label.new(root, { textAlign: "center", centerX: am5.p50, centerY: am5.p50, text: "" }));
+  chart.appear(800, 100);
+}
+
+async function tyUpdate(month = 12) {
+  const acc = await tyStats(TY.year), y = TY.year;
+  const data = TY_DAYS.map(({ cat, m, d }) => {
+    const a = acc[cat]?.[TY.kind], show = a && a[1] && (month === 12 || m <= month), label = `${d} ${TY_MS[m].toLowerCase()} ${y}`;
+    return show ? { cat, lo: +a[2].toFixed(1), hi: +a[3].toFixed(1), mean: +(a[0] / a[1]).toFixed(1), label } : { cat, label };
+  });
+  TY.xAxis.data.setAll(data); TY.series.data.setAll(data); TY.mean.data.setAll(data);
+  const vals = data.filter(x => x.mean != null);
+  if (vals.length) {
+    const avg = vals.reduce((a, x) => a + x.mean, 0) / vals.length;
+    const mn = vals.reduce((a, x) => x.lo < a.lo ? x : a), mx = vals.reduce((a, x) => x.hi > a.hi ? x : a);
+    const short = (l) => l.replace(" " + y, "");
+    TY.center.set("text", `[fontSize:2.2em bold]${y}[/]\n[fontSize:1em]${month === 12 ? "średnia roczna" : "średnia do: " + TY_MONTHS[month]}[/]\n[fontSize:1.5em]${fmt(avg)}°C[/]\n[fontSize:0.85em #88c0d0]min ${fmt(mn.lo)}° (${short(mn.label)})[/]\n[fontSize:0.85em #d08770]maks ${fmt(mx.hi)}° (${short(mx.label)})[/]`);
+  } else TY.center.set("text", `[fontSize:2.2em bold]${y}[/]\n[fontSize:1em]brak danych[/]`);
+  const lbl = document.getElementById("tyLbl"); if (lbl) lbl.textContent = month === 12 ? "Cały rok" : "do: " + TY_MONTHS[month];
+}
+
+// ---------- Wykresy ----------
+let range = 1, chartRoots = [], seriesList = [];   // seriesList: {series, key}
+
+function buildCharts(rows) {
+  chartRoots.forEach(r => r.dispose()); chartRoots = []; seriesList = []; rainSeries = [];
+  const box = document.getElementById("charts"); box.innerHTML = "";
+  for (const c of CHARTS) {
+    const all = [...c.s.map(s => [...s, false]), ...(c.s2 || []).map(s => [...s, true])]
+      .filter(([key]) => rows.some(r => pick(r, key) != null));
+    if (!all.length) continue;
+    if (c.rain) { buildRainChart(box, c, rows); continue; }
+
+    const el = document.createElement("section"); el.className = "box chart"; el.id = "ch-" + c.s[0][0];
+    el.innerHTML = c.nord
+      ? `<h2><button class="home" title="Do góry strony" aria-label="Do góry strony"><i class="ti ti-home"></i></button>${c.t}</h2><div class="ytabs"><div class="seg">${CURSOR_MODES.map(([m, l]) =>
+          `<button data-m="${m}" class="${m === cursorMode ? "on" : ""}">${l}</button>`).join("")}</div></div><div class="sel"></div><div class="c"></div>`
+      : `<h2><button class="home" title="Do góry strony" aria-label="Do góry strony"><i class="ti ti-home"></i></button>${c.wind ? `${c.t} (${wLabel()})` : c.t}</h2><div class="c"></div>`;
+    box.appendChild(el);
+    let root;
+    if (c.nord) {   // styl "Data Grouping": Nord Dark + Responsive
+      root = am5.Root.new(el.querySelector(".c"));
+      root.setThemes([am5themes_Animated.new(root), am5themes_NordDark.new(root), am5themes_Responsive.new(root)]);
+      root.locale = am5locales_pl_PL;
+    } else root = newRoot(el.querySelector(".c"));
+    chartRoots.push(root);
+    root.dateFormatter.setAll({ dateFormat: "d MMM HH:mm", dateFields: ["valueX"] });
+
+    const chart = root.container.children.push(am5xy.XYChart.new(root, {
+      panX: true, panY: false, wheelX: "panX", wheelY: "zoomX", pinchZoomX: true, paddingLeft: 0, layout: root.verticalLayout,
+    }));
+    // Nord: przeciąganie przesuwa wykres (Pan); pozostałe: zaznaczenie przybliża
+    const cursor = chart.set("cursor", am5xy.XYCursor.new(root, { behavior: c.nord ? "none" : "zoomX" }));
+    cursor.lineY.set("visible", false);
+    if (c.nord) setupCursorModes(el, chart, cursor, () => xAxis, rows, c.s[0][0]);
+
+    const xAxis = chart.xAxes.push(am5xy.DateAxis.new(root, {
+      baseInterval: { timeUnit: "minute", count: 1 }, groupData: true, groupCount: 400,
+      maxDeviation: 0, renderer: am5xy.AxisRendererX.new(root, { minGridDistance: c.nord ? 60 : 80, minorGridEnabled: !!c.nord }),
+      tooltip: am5.Tooltip.new(root, {}), tooltipDateFormat: "d MMM, HH:mm",
+    }));
+    const yAxis = chart.yAxes.push(am5xy.ValueAxis.new(root, { renderer: am5xy.AxisRendererY.new(root, {}) }));
+    if (c.nord) [xAxis, yAxis].forEach(a => a.get("renderer").grid.template.setAll({ strokeDasharray: [5, 5] }));
+    let y2 = null;
+    if (all.some(s => s[4])) {
+      y2 = chart.yAxes.push(am5xy.ValueAxis.new(root, { min: 0, renderer: am5xy.AxisRendererY.new(root, { opposite: true }) }));
+      y2.get("renderer").grid.template.set("forceHidden", true);
+    }
+
+    for (const [key, name, color, type, right] of all) {
+      const Cls = type === "step" ? am5xy.StepLineSeries : am5xy.LineSeries;
+      const s = chart.series.push(Cls.new(root, {
+        name, xAxis, yAxis: right ? y2 : yAxis, valueXField: "t", valueYField: "v",
+        ...(c.nord ? {} : { stroke: am5.color(color), fill: am5.color(color) }), autoGapCount: 180,
+        tooltip: am5.Tooltip.new(root, { labelText: "{name}: [bold]{valueY.formatNumber('#.0')}[/]" }),
+      }));
+      s.strokes.template.set("strokeWidth", c.nord ? 1 : 2);
+      if (c.nord) s.fills.template.setAll({ visible: true, fillOpacity: .08 });
+      else if (all.length === 1) s.fills.template.setAll({ visible: true, fillOpacity: .12 });
+      s.data.setAll(seriesData(rows, key));
+      seriesList.push({ series: s, key });
+    }
+
+    if (c.nord) {   // suwak z podglądem przebiegu temperatury
+      const sb = am5xy.XYChartScrollbar.new(root, { orientation: "horizontal", height: 50 });
+      chart.set("scrollbarX", sb);
+      const sbx = sb.chart.xAxes.push(am5xy.DateAxis.new(root, {
+        baseInterval: { timeUnit: "minute", count: 1 }, groupData: true, groupCount: 300,
+        groupIntervals: [{ timeUnit: "minute", count: 10 }, { timeUnit: "hour", count: 1 }, { timeUnit: "hour", count: 6 }, { timeUnit: "day", count: 1 }],
+        renderer: am5xy.AxisRendererX.new(root, { minorGridEnabled: true, opposite: false, strokeOpacity: 0 }),
+      }));
+      const sby = sb.chart.yAxes.push(am5xy.ValueAxis.new(root, { renderer: am5xy.AxisRendererY.new(root, {}) }));
+      const sbs = sb.chart.series.push(am5xy.LineSeries.new(root, { xAxis: sbx, yAxis: sby, valueXField: "t", valueYField: "v" }));
+      sbs.data.setAll(seriesData(rows, all[0][0]));
+      seriesList.push({ series: sbs, key: all[0][0] });
+    } else {
+      const sb = am5.Scrollbar.new(root, { orientation: "horizontal", height: 8, marginTop: 6 });
+      chart.set("scrollbarX", sb); chart.bottomAxesContainer.children.push(sb);
+    }
+    if (all.length > 1) {
+      const legend = chart.children.push(am5.Legend.new(root, { centerX: am5.p50, x: am5.p50, marginTop: 4 }));
+      legend.labels.template.set("fontSize", 12); legend.markers.template.setAll({ width: 12, height: 12 });
+      legend.data.setAll(chart.series.values);
+    }
+  }
+  if (!box.children.length) box.innerHTML = `<p style="color:var(--muted)">Brak danych historycznych dla tego zakresu.</p>`;
+}
+
+// ---------- Wykres opadów: słupki sum w przedziale, natężenie chwilowe, suma narastająca ----------
+const GROUP_HOURS = { minute: 1 / 60, hour: 1, day: 24, week: 168, month: 720, year: 8760 };
+let rainSeries = [];
+
+// Przyrosty opadu z licznika dziennego (zeruje się o północy) + suma narastająca od początku zakresu
+function rainIncrements(rows) {
+  const out = []; let prev = null, prevDay = null, cum = 0;
+  for (const r of rows) {
+    const d = pick(r, "rainDay"); if (d == null) continue;
+    const day = new Date(r.t * 1000).toLocaleDateString("sv-SE", { timeZone: "Europe/Warsaw" });
+    let inc = prev == null ? 0 : (day !== prevDay || d < prev ? d : d - prev);
+    inc = Math.max(0, +inc.toFixed(2)); cum += inc;
+    out.push({ t: r.t * 1000, v: inc, r: pick(r, "rainRate") ?? 0, c: +cum.toFixed(1) });
+    prev = d; prevDay = day;
+  }
+  return out;
+}
+
+function buildRainChart(box, c, rows) {
+  const el = document.createElement("section"); el.className = "box chart"; el.id = "ch-rainDay";
+  el.innerHTML = `<h2><button class="home" title="Do góry strony" aria-label="Do góry strony"><i class="ti ti-home"></i></button>${c.t}</h2>
+    <div class="c" style="height:380px"></div>
+    <div class="rlg"><span><i style="background:#a8d8ea"></i>mżawka &lt; 0,5 mm/h</span><span><i style="background:#5e9fd8"></i>deszcz 0,5–4 mm/h</span>
+      <span><i style="background:#2f5fb3"></i>silny 4–10 mm/h</span><span><i style="background:#9a6fd1"></i>ulewa &gt; 10 mm/h</span></div>`;
+  box.appendChild(el);
+  const root = am5.Root.new(el.querySelector(".c")); chartRoots.push(root);
+  root.setThemes([am5themes_Animated.new(root), am5themes_NordDark.new(root), am5themes_Responsive.new(root)]);
+  root.locale = am5locales_pl_PL; root.numberFormatter.set("numberFormat", "#,###.#");
+  const chart = root.container.children.push(am5xy.XYChart.new(root, {
+    panX: true, panY: false, wheelX: "panX", wheelY: "zoomX", pinchZoomX: true, paddingLeft: 0, layout: root.verticalLayout,
+  }));
+  chart.set("cursor", am5xy.XYCursor.new(root, { behavior: "zoomX" })).lineY.set("visible", false);
+  const xAxis = chart.xAxes.push(am5xy.DateAxis.new(root, {
+    baseInterval: { timeUnit: "minute", count: 1 }, groupData: true, groupCount: 70, maxDeviation: 0,
+    groupIntervals: [{ timeUnit: "minute", count: 10 }, { timeUnit: "minute", count: 30 }, { timeUnit: "hour", count: 1 },
+      { timeUnit: "hour", count: 3 }, { timeUnit: "hour", count: 6 }, { timeUnit: "day", count: 1 },
+      { timeUnit: "week", count: 1 }, { timeUnit: "month", count: 1 }],
+    renderer: am5xy.AxisRendererX.new(root, { minGridDistance: 70, minorGridEnabled: true }),
+    tooltip: am5.Tooltip.new(root, {}), tooltipDateFormat: "d MMM, HH:mm",
+  }));
+  const yAxis = chart.yAxes.push(am5xy.ValueAxis.new(root, { min: 0, renderer: am5xy.AxisRendererY.new(root, {}) }));
+  const sideAxis = (label, color) => {
+    const a = chart.yAxes.push(am5xy.ValueAxis.new(root, { min: 0, renderer: am5xy.AxisRendererY.new(root, { opposite: true }) }));
+    a.get("renderer").grid.template.set("forceHidden", true);
+    a.get("renderer").labels.template.setAll({ fill: am5.color(color), fontSize: 11 });
+    a.children.unshift(am5.Label.new(root, { text: label, rotation: -90, y: am5.p50, centerX: am5.p50, fill: am5.color(color), fontSize: 11 }));
+    return a;
+  };
+  const y2 = sideAxis("suma mm", 0x88c0d0), y3 = sideAxis("mm/h", 0xd08770);
+  [xAxis, yAxis].forEach(a => a.get("renderer").grid.template.setAll({ strokeDasharray: [5, 5] }));
+
+  const cols = chart.series.push(am5xy.ColumnSeries.new(root, {
+    name: "Opad w przedziale", xAxis, yAxis, valueXField: "t", valueYField: "v", valueYGrouped: "sum",
+    tooltip: am5.Tooltip.new(root, { labelText: "Suma: [bold]{valueY.formatNumber('#.0')} mm[/]" }),
+  }));
+  cols.columns.template.setAll({ width: am5.percent(78), strokeOpacity: 0, cornerRadiusTL: 3, cornerRadiusTR: 3 });
+  const intervalHours = () => { const g = xAxis.getPrivate("groupInterval") || xAxis.getPrivate("baseInterval") || xAxis.get("baseInterval"); return GROUP_HOURS[g.timeUnit] * g.count; };
+  cols.columns.template.adapters.add("fill", (fill, t) => {   // kolor wg natężenia: suma ÷ długość przedziału
+    const mmh = (t.dataItem?.get("valueY") ?? 0) / intervalHours();
+    return am5.color(mmh < 0.5 ? 0xa8d8ea : mmh < 4 ? 0x5e9fd8 : mmh < 10 ? 0x2f5fb3 : 0x9a6fd1);
+  });
+  const rateS = chart.series.push(am5xy.LineSeries.new(root, {
+    name: "Natężenie chwilowe", xAxis, yAxis: y3, valueXField: "t", valueYField: "r", valueYGrouped: "high",
+    stroke: am5.color(0xd08770), fill: am5.color(0xd08770),
+    tooltip: am5.Tooltip.new(root, { labelText: "Natężenie (maks.): [bold]{valueY.formatNumber('#.0')} mm/h[/]" }),
+  }));
+  rateS.strokes.template.setAll({ strokeWidth: 1.5 }); rateS.fills.template.setAll({ visible: true, fillOpacity: 0.12 });
+  const cumS = chart.series.push(am5xy.StepLineSeries.new(root, {
+    name: "Suma narastająca", xAxis, yAxis: y2, valueXField: "t", valueYField: "c", valueYGrouped: "close",
+    stroke: am5.color(0x88c0d0),
+    tooltip: am5.Tooltip.new(root, { labelText: "Razem od początku zakresu: [bold]{valueY.formatNumber('#.0')} mm[/]" }),
+  }));
+  cumS.strokes.template.setAll({ strokeWidth: 1.5 });
+  const legend = chart.children.push(am5.Legend.new(root, { centerX: am5.p50, x: am5.p50, marginTop: 4 }));
+  legend.labels.template.set("fontSize", 12); legend.markers.template.setAll({ width: 12, height: 12 });
+  legend.data.setAll([cols, rateS, cumS]);
+  const sb = am5.Scrollbar.new(root, { orientation: "horizontal", height: 8, marginTop: 6 });
+  chart.set("scrollbarX", sb); chart.bottomAxesContainer.children.push(sb);
+  rainSeries = [cols, rateS, cumS];
+  const d = rainIncrements(rows); rainSeries.forEach(s => s.data.setAll(d));
+}
+
+// Wiatr przeliczany na jednostkę wybraną na kafelku (km/h lub m/s)
+const windConv = (ms) => windUnit === "ms" ? ms : ms * 3.6;
+const WIND_KEYS = new Set(["wind", "gust"]);
+const seriesData = (rows, key) => rows.map(r => { const v = pick(r, key); return { t: r.t * 1000, v: v != null && WIND_KEYS.has(key) ? +windConv(v).toFixed(1) : v }; }).filter(p => p.v != null);
+
+async function loadRows(r = range) {
+  const idx = await get("data/index.json");
+  const from = Date.now() / 1000 - r * 86400;
+  if (r > 30) {   // widok roczny: agregaty godzinowe z plików miesięcznych
+    const fromMonth = new Date(from * 1000).toISOString().slice(0, 7);
+    const months = (idx.months || []).filter(m => m >= fromMonth);
+    return (await Promise.all(months.map(m => get(`data/hourly/${m}.json`).catch(() => [])))).flat()
+      .filter(r => r.t >= from).sort((a, b) => a.t - b.t);
+  }
+  const fromDay = new Date((from - 86400) * 1000).toISOString().slice(0, 10);
+  const days = idx.days.filter(d => d >= fromDay);
+  return (await Promise.all(days.map(d => get(`data/days/${d}.json`).catch(() => [])))).flat()
+    .filter(r => r.t >= from).sort((a, b) => a.t - b.t);
+}
+
+// ---------- Nagłówek: wiek danych i ręczne pobieranie ----------
+let lastMeasT = null;
+function updateHeaderAge() {
+  if (!lastMeasT) return;
+  const age = Math.round((Date.now() / 1000 - lastMeasT) / 60);
+  document.getElementById("updated").textContent =
+    "Pomiar " + new Date(lastMeasT * 1000).toLocaleString("pl-PL", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) +
+    " · " + (age < 1 ? "teraz" : age < 120 ? age + " min temu" : Math.round(age / 60) + " h temu");
+  document.getElementById("hDot").style.background = age <= 20 ? "#a3be8c" : age <= 60 ? "#ebcb8b" : "#bf616a";
+}
+setInterval(updateHeaderAge, 60000);
+
+const GH_DISPATCH = "https://api.github.com/repos/trekPio/Meteo/actions/workflows/fetch.yml/dispatches";
+const GH_ACTIONS = "https://github.com/trekPio/Meteo/actions/workflows/fetch.yml";
+function fetchState(icon, text, color = "", busy = false) {
+  const b = document.getElementById("hFetch"), i = document.getElementById("hFi");
+  b.disabled = busy; i.className = "ti " + icon; i.style.color = color; document.getElementById("hFt").textContent = text;
+}
+async function manualFetch() {
+  let token = null;
+  try { token = localStorage.getItem("meteoToken"); } catch (e) {}
+  if (!token) {
+    token = prompt("Ręczne pobranie wymaga tokenu GitHub (zapisze się tylko w tej przeglądarce).\nWklej token albo kliknij Anuluj, aby otworzyć stronę workflow na GitHubie.");
+    if (!token) { window.open(GH_ACTIONS, "_blank"); return; }
+    token = token.trim().replace(/^Bearer\s+/i, "");
+    try { localStorage.setItem("meteoToken", token); } catch (e) {}
+  }
+  fetchState("ti-loader-2 hspin", "Pobieram…", "", true);
+  try {
+    const r = await fetch(GH_DISPATCH, { method: "POST", headers: {
+      Accept: "application/vnd.github+json", "Content-Type": "application/json",
+      Authorization: "Bearer " + token, "X-GitHub-Api-Version": "2022-11-28" },
+      body: JSON.stringify({ ref: "main", inputs: { source: "manual" } }) });
+    if (r.status === 401 || r.status === 403) {
+      try { localStorage.removeItem("meteoToken"); } catch (e) {}
+      fetchState("ti-alert-triangle", "Zły token", "#bf616a"); setTimeout(() => fetchState("ti-refresh", "Pobierz teraz"), 4000); return;
+    }
+    if (r.status !== 204) throw new Error(r.status);
+  } catch (e) { fetchState("ti-alert-triangle", "Błąd", "#bf616a"); setTimeout(() => fetchState("ti-refresh", "Pobierz teraz"), 4000); return; }
+  // czekaj na nowy pomiar (workflow ~20 s + publikacja strony ~1 min)
+  const before = lastMeasT, start = Date.now();
+  while (Date.now() - start < 4 * 60000) {
+    await new Promise(res => setTimeout(res, 10000));
+    try { const L = await get("data/latest.json"); if (L.fetched && L.src === "manual" && L.fetched * 1000 > start - 5000 || L.t > before) { await refresh(); break; } } catch (e) {}
+  }
+  fetchState("ti-check", "Pobrano", "#a3be8c"); setTimeout(() => fetchState("ti-refresh", "Pobierz teraz"), 3000);
+}
+document.getElementById("hFetch").onclick = manualFetch;
+
+
+// ---------- Stacje w okolicy (publiczne stacje Netatmo, data/netatmo.json) ----------
+const NEAR = { f: "all", v: "map", me: null, list: [], fetched: 0 };
+try { const n = JSON.parse(localStorage.getItem("meteoNear") || "{}"); NEAR.f = n.f || "all"; NEAR.v = n.v || "map"; } catch (e) {}
+const nearFull = (s) => s.wind != null && s.rain_1h != null;
+const nearDc = (d) => d > 0.4 ? "#d08770" : d < -0.4 ? "#88c0d0" : "var(--muted)";
+const nearWind = (kmh) => kmh == null ? null : windUnit === "ms" ? +(kmh / 3.6).toFixed(1) : Math.round(kmh);
+
+async function loadNear(v) {
+  const el = document.getElementById("ch-near");
+  const N = await get("data/netatmo.json").catch(() => null);
+  if (!N || !N.stations?.length) { el.style.display = "none"; return; }
+  el.style.display = "";
+  NEAR.fetched = N.fetched; NEAR.list = N.stations.filter(s => s.temp != null);
+  if (!NEAR.base) NEAR.base = await get("data/near_map.json").catch(() => ({}));   // podkład z OpenStreetMap
+  NEAR.me = { city: "Moja stacja", lat: N.home[0], lon: N.home[1], me: true, temp: pick(v, "temp"), hum: pick(v, "hum"), pres: pick(v, "press"),
+    wind: pick(v, "wind") != null ? pick(v, "wind") * 3.6 : null, gust: pick(v, "gust") != null ? pick(v, "gust") * 3.6 : null, rain_1h: pick(v, "rain1h") ?? 0 };
+  if (!el.innerHTML) {
+    el.innerHTML = `<h2><button class="home" title="Do góry strony" aria-label="Do góry strony"><i class="ti ti-home"></i></button>Stacje w okolicy</h2>
+      <div class="ytabs"><div class="seg" id="nearF"><button data-f="all">Wszystkie</button><button data-f="full">Z wiatrem i opadem</button></div><span class="sep"></span>
+      <div class="seg" id="nearV"><button data-v="map">Mapa</button><button data-v="tab">Tabela</button></div></div>
+      <div class="sel" id="nearInfo"></div><div id="nearBody" style="padding:0 4px 8px"></div>`;
+    el.querySelectorAll("#nearF button").forEach(b => b.onclick = () => { NEAR.f = b.dataset.f; drawNear(); });
+    el.querySelectorAll("#nearV button").forEach(b => b.onclick = () => { NEAR.v = b.dataset.v; drawNear(); });
+  }
+  drawNear();
+}
+
+function drawNear() {
+  const el = document.getElementById("ch-near");
+  try { localStorage.setItem("meteoNear", JSON.stringify({ f: NEAR.f, v: NEAR.v })); } catch (e) {}
+  el.querySelectorAll("#nearF button").forEach(b => b.classList.toggle("on", b.dataset.f === NEAR.f));
+  el.querySelectorAll("#nearV button").forEach(b => b.classList.toggle("on", b.dataset.v === NEAR.v));
+  const L = NEAR.list.filter(s => NEAR.f === "all" || nearFull(s));
+  const upd = new Date(NEAR.fetched * 1000).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" });
+  el.querySelector("#nearInfo").textContent = `Netatmo · ${L.length} z ${NEAR.list.length} stacji · aktualizacja ${upd} · Δ = różnica temperatury względem Twojej stacji`;
+  const body = el.querySelector("#nearBody"); body.innerHTML = NEAR.v === "map" ? nearMap(L) : nearTable(L);
+  if (NEAR.v === "map") nearBind(body);
+}
+
+function nearTable(L) {
+  const me = NEAR.me, na = '<span class="na">–</span>';
+  const row = (s) => {
+    const d = s.temp - me.temp, w = nearWind(s.wind), g = nearWind(s.gust);
+    return `<tr class="${s.me ? "me" : ""}"><td>${s.me ? "—" : fmt(s.km) + " km"}</td><td>${s.city || "–"}</td>
+      <td>${fmt(tConv(s.temp))} ${tLabel()}</td><td style="color:${nearDc(d)}">${s.me ? "" : (d > 0 ? "+" : "") + fmt(d)}</td>
+      <td>${s.hum != null ? Math.round(s.hum) + " %" : na}</td><td>${s.pres != null ? Math.round(s.pres) : na}</td>
+      <td>${w == null ? na : `${w} / ${g ?? "–"} ${wLabel()}`}</td><td>${s.rain_1h == null ? na : fmt(s.rain_1h) + " mm"}</td></tr>`;
+  };
+  return `<table><tr><th>Odl.</th><th>Stacja</th><th>Temp.</th><th>Δ</th><th>Wilg.</th><th>Ciśn. hPa</th><th>Wiatr / porywy</th><th>Deszcz 1 h</th></tr>${[me, ...L].map(row).join("")}</table>`;
+}
+
+// Widok mapy: środek (lat/lon) i przybliżenie z (1 = cała okolica); grupowanie stacji zależy od skali
+const NEAR_W = 900, NEAR_H = 460, NEAR_ZMAX = 40;
+function nearBase() {
+  const me = NEAR.me, all = [me, ...NEAR.list], k = Math.cos(me.lat * Math.PI / 180), pad = 50;
+  const lats = all.map(s => s.lat), lons = all.map(s => s.lon);
+  const y1 = Math.max(...lats), y0 = Math.min(...lats), x0 = Math.min(...lons), x1 = Math.max(...lons);
+  const sc0 = Math.min((NEAR_W - 2 * pad) / ((x1 - x0) * k), (NEAR_H - 2 * pad - 30) / (y1 - y0));
+  return { k, sc0, lat: (y0 + y1) / 2, lon: (x0 + x1) / 2 };
+}
+const nearView = () => NEAR.view || (NEAR.view = { ...nearBase(), z: 1 });
+const nearKm = (a, b) => Math.hypot((a.lat - b.lat) * 111, (a.lon - b.lon) * 111 * Math.cos(a.lat * Math.PI / 180));
+
+function nearMap(L) {
+  const me = NEAR.me, V = nearView(), sc = V.sc0 * V.z, W = NEAR_W, H = NEAR_H;
+  const P = (s) => [W / 2 + (s.lon - V.lon) * V.k * sc, H / 2 - (s.lat - V.lat) * sc];
+  // stacje bliżej niż ~40 px od siebie – jeden znacznik (po przybliżeniu same się rozdzielają)
+  const groups = [];
+  L.forEach(s => { const [x, y] = P(s); const g = groups.find(g => Math.hypot(g.x0 - x, g.y0 - y) < 40); if (g) g.m.push(s); else groups.push({ x0: x, y0: y, m: [s] }); });
+  groups.forEach(g => { const pts = g.m.map(P); g.x = pts.reduce((a, p) => a + p[0], 0) / pts.length; g.y = pts.reduce((a, p) => a + p[1], 0) / pts.length;
+    g.same = g.m.length > 1 && g.m.every(s => nearKm(s, g.m[0]) < 0.3); });   // praktycznie ten sam adres – rozsunięcie na okręgu
+  const [cx, cy] = P(me), km = sc / 111;
+  let g = `<svg class="nmap" viewBox="0 0 ${W} ${H}"><clipPath id="nearClip"><rect width="${W}" height="${H}" rx="8"/></clipPath><g clip-path="url(#nearClip)">`;
+  g += nearBaseLayer(P, V.z, [...groups.map(G => [G.x, G.y]), ...groups.filter(G => G.same).map(G => [G.x, G.y - 56]), [cx, cy]]);
+  const step = [0.5, 1, 2, 5, 10].find(r => r * km > 70) || 5;
+  for (let r = step; r <= 40; r += step) { const R = r * km;
+    g += `<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="#2a323c" stroke-dasharray="4 5"/><text x="${cx + R * .71 + 4}" y="${cy + R * .71 + 14}" fill="#4c5869" font-size="15">${fmt(r, r < 1 ? 1 : 0)} km</text>`; }
+  const tip1 = (s) => `${s.city || ""}${s.street ? ", " + s.street : ""} · ${fmt(s.km)} km\n${fmt(tConv(s.temp))} ${tLabel()}${s.hum != null ? " · " + Math.round(s.hum) + " %" : ""}${s.wind != null ? " · wiatr " + nearWind(s.wind) + " " + wLabel() : ""}${s.rain_1h != null ? " · deszcz " + fmt(s.rain_1h) + " mm" : ""}`;
+  const dot = (s, x, y) => { const d = s.temp - me.temp, f = nearFull(s);
+    return `<g><title>${tip1(s)}</title>
+      <circle cx="${x}" cy="${y}" r="${f ? 10 : 8}" fill="${f ? "#5aa2f0" : "#3b4552"}" stroke="#12161b" stroke-width="2"/>
+      <text x="${x}" y="${y - 16}" text-anchor="middle" fill="${nearDc(d)}" font-size="18">${fmt(tConv(s.temp))}${tempUnit === "K" ? " K" : "°"}</text></g>`; };
+  const order = groups.map((G, gi) => [G, gi]).sort((a, b) => (b[0].same ? 1 : 0) - (a[0].same ? 1 : 0));   // grupy „ten sam adres” pod spodem
+  order.forEach(([G, gi]) => {
+    const n = G.m.length, lab = G.m[0].city || "";
+    if (n === 1) {   // podpis pod punktem, a gdy obok jest inny znacznik – z prawej strony
+      const nb = groups.filter(o => o !== G && Math.hypot(o.x - G.x, o.y - G.y) < (o.same ? 90 : 60));
+      const crowd = nb.length > 0 || Math.hypot(cx - G.x, cy - G.y) < 60;
+      const dup = nb.some(o => o.m[0].city === lab && (o.x < G.x || o.same));   // ta sama miejscowość tuż obok – podpis raz
+      g += dot(G.m[0], G.x, G.y) + (dup ? "" : crowd
+        ? `<text x="${G.x + 16}" y="${G.y + 6}" fill="#8c98a6" font-size="16">${lab}</text>`
+        : `<text x="${G.x}" y="${G.y + 30}" text-anchor="middle" fill="#8c98a6" font-size="16">${lab}</text>`);
+      return;
+    }
+    if (G.same) {   // kilka stacji pod tym samym adresem – punkty wokół wspólnego miejsca
+      const R = 30;
+      g += `<circle cx="${G.x}" cy="${G.y}" r="${R + 18}" fill="#1b2129" fill-opacity=".6" stroke="#2a323c"/><circle cx="${G.x}" cy="${G.y}" r="3" fill="#8c98a6"/>`;
+      G.m.forEach((s, i) => { const a = Math.PI + i * 2 * Math.PI / n, x = G.x + R * Math.cos(a), y = G.y + R * Math.sin(a) + 4; g += `<line x1="${G.x}" y1="${G.y}" x2="${x}" y2="${y}" stroke="#3b4552"/>` + dot(s, x, y); });
+      g += `<text x="${G.x}" y="${G.y - R - 26}" text-anchor="middle" fill="#8c98a6" font-size="15">${lab} · ${n} stacje pod jednym adresem</text>`;
+      return;
+    }
+    const avg = G.m.reduce((a, s) => a + s.temp, 0) / n, d = avg - me.temp, f = G.m.some(nearFull);
+    const city = Object.entries(G.m.reduce((a, s) => (a[s.city] = (a[s.city] || 0) + 1, a), {})).sort((a, b) => b[1] - a[1])[0][0];
+    g += `<g class="ngrp" data-g="${gi}" style="cursor:zoom-in"><title>${n} stacji, średnio ${fmt(tConv(avg))} ${tLabel()} – kliknij, aby przybliżyć\n${G.m.map(tip1).join("\n")}</title>
+      <circle cx="${G.x}" cy="${G.y}" r="24" fill="transparent"/>
+      <circle cx="${G.x}" cy="${G.y}" r="15" fill="${f ? "#5aa2f0" : "#3b4552"}" stroke="#12161b" stroke-width="2"/>
+      <circle cx="${G.x}" cy="${G.y}" r="19" fill="none" stroke="${f ? "#5aa2f0" : "#3b4552"}" stroke-opacity=".45" stroke-width="2"/>
+      <text x="${G.x}" y="${G.y + 5}" text-anchor="middle" fill="#fff" font-size="14" font-weight="600">${n}</text>
+      <text x="${G.x - 26}" y="${G.y + 6}" text-anchor="end" fill="${nearDc(d)}" font-size="18">śr. ${fmt(tConv(avg))}${tempUnit === "K" ? " K" : "°"}</text>
+      <text x="${G.x}" y="${G.y + 40}" text-anchor="middle" fill="#8c98a6" font-size="16">${city} (${n})</text></g>`;
+  });
+  g += `<g><circle cx="${cx}" cy="${cy}" r="11" fill="#a3be8c" stroke="#12161b" stroke-width="2"/>
+    <text x="${cx}" y="${cy - 19}" text-anchor="middle" fill="#fff" font-size="20">${fmt(tConv(me.temp))}${tempUnit === "K" ? " K" : "°"}</text>
+    <text x="${cx}" y="${cy + 32}" text-anchor="middle" fill="#cfd6de" font-size="16">Moja stacja</text></g></g></svg>`;
+  NEAR.groups = groups;
+  const zb = (ic, act, t) => `<button class="home" data-z="${act}" title="${t}" aria-label="${t}"><i class="ti ${ic}"></i></button>`;
+  return `<div style="position:relative">${g}<div style="position:absolute;top:10px;right:10px;display:flex;flex-direction:column;gap:4px">${
+    zb("ti-plus", "in", "Przybliż")}${zb("ti-minus", "out", "Oddal")}${V.z > 1.01 ? zb("ti-focus-centered", "reset", "Cała okolica") : ""}</div></div>
+    <div class="rlg"><span><i style="background:#a3be8c"></i>Moja stacja</span><span><i style="background:#5aa2f0"></i>Netatmo z wiatrem i opadem</span><span><i style="background:#3b4552"></i>Netatmo podstawowa</span><span>kliknij grupę, aby przybliżyć · kółko myszy przybliża, przeciągnięcie przesuwa</span></div>${NEAR.base?.src ? `<div style="text-align:right;font-size:11px;color:#4c5869;margin:2px 6px 0">Podkład: ${NEAR.base.src}</div>` : ""}`;
+}
+
+
+// Podkład: rzeki, drogi, miejscowości (data/near_map.json); grubości linii stałe w pikselach
+const NEAR_RIVERS = /^(Wisła|Rakutówka|Lubienka|Zgłowiączka)$/;   // podpisywane zawsze; pozostałe cieki po przybliżeniu
+const NEAR_ROAD = { motorway: ["#8a7650", 3.2], trunk: ["#6f6a5e", 2.6], primary: ["#56606b", 2], secondary: ["#3b4552", 1.4] };
+function nearBaseLayer(P, z, marks = []) {
+  const B = NEAR.base; if (!B || !B.roads) return "";
+  const path = (c) => "M" + c.map(p => P({ lon: p[0], lat: p[1] }).map(v => v.toFixed(1)).join(",")).join("L");
+  let g = "";
+  B.rivers.filter(r => r.t === "river" || NEAR_RIVERS.test(r.n) || z >= 2).forEach(r => { const big = r.t === "river" && /Wisła/.test(r.n), w = big ? 7 + Math.min(z, 8) : r.t === "river" || NEAR_RIVERS.test(r.n) ? 2.4 : 1.4;
+    g += `<path d="${path(r.c)}" fill="none" stroke="#24435a" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" opacity="${big ? .9 : .8}"/>`; });
+  B.roads.forEach(r => { const [col, w] = NEAR_ROAD[r.t];
+    g += `<path d="${path(r.c)}" fill="none" stroke="${col}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" opacity=".75"/>`; });
+  // nazwy rzek (raz, przy najdłuższym odcinku) i numery głównych dróg
+  const lab = {};
+  B.rivers.filter(r => r.n && (NEAR_RIVERS.test(r.n) || z >= 3)).forEach(r => { if (!lab[r.n] || r.c.length > lab[r.n].c.length) lab[r.n] = r; });
+  const free = (x, y) => !marks.some(m => Math.abs(m[0] - x) < 90 && Math.abs(m[1] - y) < 40);
+  Object.values(lab).forEach(r => {   // podpis rzeki w pierwszym wolnym miejscu jej przebiegu (od środka)
+    const n = r.c.length, idx = [...Array(n).keys()].sort((a, b) => Math.abs(a - n / 2) - Math.abs(b - n / 2));
+    const i = idx.find(i => { const q = P({ lon: r.c[i][0], lat: r.c[i][1] }); return free(q[0], q[1] - 8) && q[0] > 40 && q[0] < NEAR_W - 40 && q[1] > 20 && q[1] < NEAR_H - 10; });
+    if (i == null) return; const p = P({ lon: r.c[i][0], lat: r.c[i][1] });
+    g += `<text x="${p[0]}" y="${p[1] - 8}" fill="#4f7894" font-size="13" font-style="italic" text-anchor="middle">${r.n}</text>`; });
+  B.places.filter(p => p.t !== "village" || z >= 2.5).forEach(p => { const [x, y] = P(p), big = p.t !== "village";
+    if (!free(x, y)) return;   // nie pod znacznikami stacji
+    g += `<text x="${x}" y="${y}" fill="${big ? "#5d6976" : "#46505b"}" font-size="${p.t === "city" ? 17 : big ? 15 : 12}" text-anchor="middle">${p.n}</text>`; });
+  return g;
+}
+
+// Przybliżanie i przesuwanie mapy (kółko, przeciąganie, przyciski, klik w grupę)
+function nearZoom(f, px = NEAR_W / 2, py = NEAR_H / 2) {
+  const V = nearView(), z = Math.min(NEAR_ZMAX, Math.max(1, V.z * f)); f = z / V.z; if (f === 1 && z !== 1) return;
+  const sc = V.sc0 * V.z, plon = V.lon + (px - NEAR_W / 2) / (V.k * sc), plat = V.lat - (py - NEAR_H / 2) / sc;
+  V.lon = plon + (V.lon - plon) / f; V.lat = plat + (V.lat - plat) / f; V.z = z;
+  if (z === 1) NEAR.view = null;   // pełne oddalenie = wyśrodkowana cała okolica
+  drawNear();
+}
+function nearBind(body) {
+  const svg = body.querySelector("svg.nmap"); if (!svg) return;
+  const pt = (e) => { const r = svg.getBoundingClientRect(); return [(e.clientX - r.left) * NEAR_W / r.width, (e.clientY - r.top) * NEAR_H / r.height]; };
+  body.querySelectorAll("[data-z]").forEach(b => b.onclick = () => { const a = b.dataset.z; if (a === "reset") { NEAR.view = null; drawNear(); } else nearZoom(a === "in" ? 2 : 0.5); });
+  body.querySelectorAll(".ngrp").forEach(el => el.onclick = (e) => {
+    if (NEAR.dragged) return;
+    const G = NEAR.groups[+el.dataset.g], V = nearView(), lats = G.m.map(s => s.lat), lons = G.m.map(s => s.lon);
+    const dlat = Math.max(...lats) - Math.min(...lats), dlon = (Math.max(...lons) - Math.min(...lons)) * V.k;
+    const z = Math.min(NEAR_ZMAX, Math.max(V.z * 2, Math.min((NEAR_W * 0.45) / (dlon * V.sc0 || 1), (NEAR_H * 0.4) / (dlat * V.sc0 || 1))));
+    V.lat = (Math.max(...lats) + Math.min(...lats)) / 2; V.lon = (Math.max(...lons) + Math.min(...lons)) / 2; V.z = z; drawNear();
+  });
+  svg.addEventListener("wheel", (e) => { e.preventDefault(); const [x, y] = pt(e); nearZoom(e.deltaY < 0 ? 1.4 : 1 / 1.4, x, y); }, { passive: false });
+  svg.addEventListener("pointerdown", (e) => {
+    const V = nearView(); if (V.z <= 1.01) return;
+    const r0 = svg.getBoundingClientRect(), p0 = (m) => [(m.clientX - r0.left) * NEAR_W / r0.width, (m.clientY - r0.top) * NEAR_H / r0.height];
+    const [x0, y0] = p0(e), lon0 = V.lon, lat0 = V.lat; NEAR.dragged = false; svg.style.cursor = "grabbing";
+    const move = (m) => { const [x, y] = p0(m); if (Math.hypot(x - x0, y - y0) > 4) NEAR.dragged = true; if (!NEAR.dragged) return;
+      const sc = V.sc0 * V.z; V.lon = lon0 - (x - x0) / (V.k * sc); V.lat = lat0 + (y - y0) / sc;
+      cancelAnimationFrame(NEAR.raf); NEAR.raf = requestAnimationFrame(drawNear); };
+    const up = () => { removeEventListener("pointermove", move); removeEventListener("pointerup", up); setTimeout(() => NEAR.dragged = false, 0); };
+    addEventListener("pointermove", move); addEventListener("pointerup", up);
+  });
+  if (nearView().z > 1.01) svg.style.cursor = "grab";
+}
+
+// ---------- Odświeżanie ----------
+async function loadLatest() {
+  const L = await get("data/latest.json"), v = L.values;
+  lastMeasT = L.t; updateHeaderAge();
+  const man = L.src === "manual", hs = document.getElementById("hSrc");
+  hs.className = "src" + (man ? " man" : "");
+  hs.innerHTML = L.src ? (man ? '<i class="ti ti-hand-click"></i>Ręcznie' : '<i class="ti ti-clock"></i>Automat (cron)') : "";
+  updateCards(v); updateMini(v);
+  const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Warsaw" });
+  const rows = await get(`data/days/${today}.json`).catch(() => []);
+  updateGauges(v, rows);
+  const vals = rows.map(r => pick(r, "gust") ?? pick(r, "wind")).filter(x => x != null);
+  const mxw = vals.length ? Math.max(...vals, pick(v, "gust") ?? 0) : pick(v, "gust");
+  updateWindTile(v, L.t, mxw);
+  lastTiles = { g: [v, rows], w: [v, L.t, mxw] };
+  updateRainTile(v, await get("data/rain_norms.json").catch(() => ({})));
+  loadNear(v).catch(() => {});
+}
+
+async function rebuild() { try { err(); buildCharts(await loadRows()); } catch (e) { err(e); } }
+
+async function refresh() {   // co 5 min: tylko dane, bez resetowania zoomu
+  try {
+    err(); await loadLatest();
+    const rows = await loadRows();
+    seriesList.forEach(({ series, key }) => series.data.setAll(seriesData(rows, key)));
+    if (rainSeries.length) { const d = rainIncrements(rows); rainSeries.forEach(s => s.data.setAll(d)); }
+    updateWindRose(roseRange === range ? rows : await loadRows(roseRange));
+  } catch (e) { err(e); }
+}
+
+document.querySelectorAll(".ranges button").forEach(b => b.onclick = () => {
+  document.querySelectorAll(".ranges button").forEach(x => x.classList.toggle("on", x === b));
+  range = +b.dataset.d; rebuild();
+});
+
+// ---------- Sekcje (podgląd) ----------
+const PANES = ["teraz", "wykresy", "klimat", "okolica"];
+function showPane(p, push = true) {
+  if (!PANES.includes(p)) p = "teraz";
+  document.querySelectorAll(".pane").forEach(x => x.classList.toggle("on", x.dataset.p === p));
+  document.querySelectorAll("#secnav button").forEach(b => b.classList.toggle("on", b.dataset.p === p));
+  try { localStorage.setItem("meteoPane", p); } catch (e) {}
+  if (push && location.hash !== "#" + p) history.replaceState(null, "", "#" + p);
+  window.dispatchEvent(new Event("resize"));
+}
+document.querySelectorAll("#secnav button").forEach(b => b.onclick = () => { showPane(b.dataset.p); window.scrollTo({ top: 0 }); });
+window.addEventListener("hashchange", () => showPane(location.hash.slice(1), false));
+showPane(location.hash.slice(1) || (() => { try { return localStorage.getItem("meteoPane"); } catch (e) { return null; } })() || "teraz");
+
+function updateMini(v) {
+  const t = pick(v, "temp"), h = pick(v, "hum"), p = pick(v, "press"), w = pick(v, "wind"), r = pick(v, "rainDay");
+  const tv = t == null ? "–" : fmt(tConv(t), tempUnit === "K" ? 1 : 1).replace("-", "−") + " " + tLabel();
+  const wv = w == null ? "–" : (windUnit === "kmh" ? fmt(w * 3.6, 0) + " km/h" : fmt(w, 1) + " m/s");
+  document.getElementById("mini").innerHTML =
+    `<span><i class="ti ti-temperature"></i><b>${tv}</b></span><span><i class="ti ti-droplet"></i><b>${h == null ? "–" : fmt(h, 0)}</b> %</span>` +
+    `<span><i class="ti ti-gauge"></i><b>${p == null ? "–" : fmt(p, 0)}</b> hPa</span><span><i class="ti ti-wind"></i><b>${wv}</b></span>` +
+    `<span><i class="ti ti-umbrella"></i><b>${r == null ? "–" : fmt(r, 1)}</b> mm dziś</span>`;
+}
+
+buildGauges();
+loadLatest().catch(err);
+rebuild();
+loadWindRose();
+buildRainYear();
+buildCompare();
+buildTempYear();
+setInterval(refresh, 5 * 60 * 1000);
+</script>
+</body>
+</html>
