@@ -1288,7 +1288,7 @@ function nearMap(L) {
   groups.forEach((G, gi) => {
     const n = G.m.length, lab = G.m[0].city || "";
     if (n === 1) {   // podpis pod punktem, a gdy obok jest inny znacznik – z prawej strony
-      const crowd = groups.some(o => o !== G && Math.hypot(o.x - G.x, o.y - G.y) < 60) || Math.hypot(cx - G.x, cy - G.y) < 60;
+      const crowd = groups.some(o => o !== G && Math.hypot(o.x - G.x, o.y - G.y) < (o.same ? 90 : 60)) || Math.hypot(cx - G.x, cy - G.y) < 60;
       g += dot(G.m[0], G.x, G.y) + (crowd
         ? `<text x="${G.x + 16}" y="${G.y + 6}" fill="#8c98a6" font-size="16">${lab}</text>`
         : `<text x="${G.x}" y="${G.y + 30}" text-anchor="middle" fill="#8c98a6" font-size="16">${lab}</text>`);
@@ -1298,7 +1298,7 @@ function nearMap(L) {
       const R = 30;
       g += `<circle cx="${G.x}" cy="${G.y}" r="${R + 18}" fill="#1b2129" stroke="#2a323c"/><circle cx="${G.x}" cy="${G.y}" r="3" fill="#8c98a6"/>`;
       G.m.forEach((s, i) => { const a = Math.PI + i * 2 * Math.PI / n, x = G.x + R * Math.cos(a), y = G.y + R * Math.sin(a) + 4; g += `<line x1="${G.x}" y1="${G.y}" x2="${x}" y2="${y}" stroke="#3b4552"/>` + dot(s, x, y); });
-      g += `<text x="${G.x}" y="${G.y + R + 38}" text-anchor="middle" fill="#8c98a6" font-size="16">${lab} (${n}, ten sam adres)</text>`;
+      g += `<text x="${G.x}" y="${G.y - R - 26}" text-anchor="middle" fill="#8c98a6" font-size="15">${lab} · ${n} stacje pod jednym adresem</text>`;
       return;
     }
     const avg = G.m.reduce((a, s) => a + s.temp, 0) / n, d = avg - me.temp, f = G.m.some(nearFull);
@@ -1337,7 +1337,7 @@ function nearBind(body) {
     if (NEAR.dragged) return;
     const G = NEAR.groups[+el.dataset.g], V = nearView(), lats = G.m.map(s => s.lat), lons = G.m.map(s => s.lon);
     const dlat = Math.max(...lats) - Math.min(...lats), dlon = (Math.max(...lons) - Math.min(...lons)) * V.k;
-    const z = Math.min(NEAR_ZMAX, Math.max(V.z * 2, Math.min((NEAR_W * 0.6) / (dlon * V.sc0 || 1), (NEAR_H * 0.6) / (dlat * V.sc0 || 1))));
+    const z = Math.min(NEAR_ZMAX, Math.max(V.z * 2, Math.min((NEAR_W * 0.45) / (dlon * V.sc0 || 1), (NEAR_H * 0.4) / (dlat * V.sc0 || 1))));
     V.lat = (Math.max(...lats) + Math.min(...lats)) / 2; V.lon = (Math.max(...lons) + Math.min(...lons)) / 2; V.z = z; drawNear();
   });
   svg.addEventListener("wheel", (e) => { e.preventDefault(); const [x, y] = pt(e); nearZoom(e.deltaY < 0 ? 1.4 : 1 / 1.4, x, y); }, { passive: false });
