@@ -1,0 +1,31 @@
+name: Odśwież podkład mapy (OpenStreetMap)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fetch          # nie koliduje z cyklicznym pobieraniem
+  cancel-in-progress: false
+
+jobs:
+  basemap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Pobierz rzeki, drogi i miejscowości
+        run: python3 scripts/basemap.py
+
+      - name: Zapisz zmiany
+        run: |
+          git config user.name "meteo-bot"
+          git config user.email "meteo-bot@users.noreply.github.com"
+          git add data/near_map.json
+          git diff --cached --quiet && { echo "Bez zmian"; exit 0; }
+          git commit -m "podkład mapy (OpenStreetMap)"
+          git pull --rebase
+          git push
