@@ -53,6 +53,16 @@
   .ytabs .seg button { border:0; background:none; color:var(--muted); padding:8px 0; border-radius:0; font-size:13px; }
   .ytabs .seg button:hover { color:var(--fg); }
   .ytabs .seg button.on { background:none; color:var(--fg); box-shadow:inset 0 -2px 0 var(--acc); }
+  .ytabs.split { justify-content:space-between; }
+  .cmw { position:relative; display:flex; align-items:center; }
+  .ytabs .cmg { border:0; background:none; color:var(--muted); padding:4px 2px; cursor:pointer; font-size:22px; line-height:1; display:flex; }
+  .ytabs .cmg:hover, .ytabs .cmg.open { color:#cfd6de; }
+  .cmg i { transition:transform .25s; } .cmg.open i { transform:rotate(60deg); }
+  .cmenu { position:absolute; top:calc(100% + 2px); left:-8px; z-index:5; background:#222a33; border:1px solid #3b4552; border-radius:10px; padding:2px 14px; display:flex; flex-direction:column; min-width:120px; box-shadow:0 6px 16px rgba(0,0,0,.35); }
+  .cmenu[hidden] { display:none; }
+  .ytabs .cmenu button { display:flex; align-items:center; gap:8px; padding:8px 0; color:var(--muted); background:none; border-radius:0; box-shadow:none; text-align:left; align-self:flex-start; }
+  .ytabs .cmenu button i { font-size:16px; }
+  .ytabs .cmenu button:hover, .ytabs .cmenu button.on { color:var(--fg); background:none; box-shadow:inset 0 -2px 0 var(--acc); }
   .ytabs .sep { width:1px; height:18px; background:var(--line); }
   .ytabs .ydot { width:9px; height:9px; border-radius:50%; display:inline-block; margin-right:6px; vertical-align:0; }
   .ytabs + .sel { margin-top:6px; }
@@ -629,12 +639,16 @@ function setupCursorModes(el, chart, cursor, getX, rows, key) {
     cursorMode = m;
     cursor.set("behavior", { zoom: "zoomX", select: "selectX", pan: "none", none: "none" }[m]);
     chart.set("panX", m === "pan");
-    el.querySelectorAll(".seg button").forEach(b => b.classList.toggle("on", b.dataset.m === m));
+    el.querySelectorAll("button[data-m]").forEach(b => b.classList.toggle("on", b.dataset.m === m));
     sel.textContent = { zoom: "Przeciągnij po wykresie, aby przybliżyć wybrany fragment.",
       select: "Zaznacz fragment, aby zobaczyć statystyki temperatury.",
       pan: "Przeciągnij wykres, aby go przesunąć; kółko myszy przybliża.", none: "" }[m];
   };
-  el.querySelectorAll(".seg button").forEach(b => b.onclick = () => apply(b.dataset.m));
+  const menu = el.querySelector(".cmenu"), gear = el.querySelector(".cmg");
+  const close = () => { menu.hidden = true; gear.classList.remove("open"); };
+  gear.onclick = (ev) => { ev.stopPropagation(); menu.hidden = !menu.hidden; gear.classList.toggle("open", !menu.hidden);
+    if (!menu.hidden) document.addEventListener("click", close, { once: true }); };
+  el.querySelectorAll("button[data-m]").forEach(b => b.onclick = (ev) => { ev.stopPropagation(); apply(b.dataset.m); close(); });
   cursor.events.on("selectended", () => {
     if (cursorMode !== "select") return;
     const x = getX(), toT = (p) => x.positionToDate(x.toAxisPosition(p)).getTime() / 1000;
@@ -1006,20 +1020,56 @@ async function tyUpdate(month = 12) {
 // ---------- Wykresy ----------
 let range = 1, chartRoots = [], seriesList = [];   // seriesList: {series, key}
 
+const CM_ICON = { zoom: "ti-zoom-in", select: "ti-marquee-2", pan: "ti-hand-move", none: "ti-pointer" };
+const CH_RANGES = [[1, "24 h"], [3, "3 dni"], [7, "7 dni"], [30, "30 dni"], [365, "Rok"]];
+const chRange = {};   // zakres wybrany na pasku danego wykresu (klucz = tytuł)
+
 function buildCharts(rows) {
   chartRoots.forEach(r => r.dispose()); chartRoots = []; seriesList = []; rainSeries = [];
   const box = document.getElementById("charts"); box.innerHTML = "";
-  for (const c of CHARTS) {
+  for (const c of CHARTS) { chRange[c.t] = range; buildOne(box, c, rows, range); }
+  if (!box.children.length) box.innerHTML = `<p style="color:var(--muted)">Brak danych historycznych dla tego zakresu.</p>`;
+}
+
+// Jeden wykres w kontenerze + pasek zakresu (po prawej) w górnym pasku wykresu
+function buildOne(box, c, rows, r, replace) {
+  const saved = range; range = r;
+  const r0 = chartRoots.length, s0 = seriesList.length, tmp = document.createElement("div");
+  try { buildChartBody(tmp, c, rows); } finally { range = saved; }
+  const el = tmp.firstElementChild;
+  if (!el) { if (replace) replace.remove(); return; }
+  el._roots = chartRoots.slice(r0); el._series = seriesList.slice(s0);
+  el._series.forEach(x => x.r = r);
+  if (c.rain) rainRange = r;
+  const rg = `<div class="seg rg">${CH_RANGES.map(([d, l]) => `<button data-d="${d}" class="${d === r ? "on" : ""}">${l}</button>`).join("")}</div>`;
+  let bar = el.querySelector(".ytabs");
+  if (bar) { bar.classList.add("split"); bar.insertAdjacentHTML("beforeend", rg); }
+  else { el.querySelector("h2").insertAdjacentHTML("afterend", `<div class="ytabs">${rg}</div>`); bar = el.querySelector(".ytabs"); }
+  bar.querySelectorAll(".rg button").forEach(b => b.onclick = async () => {
+    const d = +b.dataset.d; if (d === chRange[c.t]) return;
+    bar.querySelectorAll(".rg button").forEach(x => x.classList.toggle("on", x === b));
+    try { err(); const rows2 = await loadRows(d); chRange[c.t] = d; rebuildOne(el, c, rows2, d); } catch (e) { err(e); }
+  });
+  if (replace) replace.replaceWith(el); else box.appendChild(el);
+}
+function rebuildOne(el, c, rows, r) {
+  el._roots.forEach(x => { x.dispose(); chartRoots.splice(chartRoots.indexOf(x), 1); });
+  seriesList = seriesList.filter(x => !el._series.includes(x));
+  buildOne(null, c, rows, r, el);
+}
+
+function buildChartBody(box, c, rows) {
+  {
     const all = [...c.s.map(s => [...s, false]), ...(c.s2 || []).map(s => [...s, true])]
       .filter(([key]) => rows.some(r => pick(r, key) != null));
-    if (!all.length) continue;
-    if (c.rain) { buildRainChart(box, c, rows); continue; }
-    if (c.sun) { buildSunChart(box, c, rows); continue; }
+    if (!all.length) return;
+    if (c.rain) { buildRainChart(box, c, rows); return; }
+    if (c.sun) { buildSunChart(box, c, rows); return; }
 
     const el = document.createElement("section"); el.className = "box chart"; el.id = "ch-" + c.s[0][0];
     el.innerHTML = c.nord
-      ? `<h2><button class="home" title="Do góry strony" aria-label="Do góry strony"><i class="ti ti-home"></i></button>${c.t}</h2><div class="ytabs"><div class="seg">${CURSOR_MODES.map(([m, l]) =>
-          `<button data-m="${m}" class="${m === cursorMode ? "on" : ""}">${l}</button>`).join("")}</div></div><div class="sel"></div><div class="c"></div>`
+      ? `<h2><button class="home" title="Do góry strony" aria-label="Do góry strony"><i class="ti ti-home"></i></button>${c.t}</h2><div class="ytabs"><div class="cmw"><button class="cmg" title="Tryb kursora" aria-label="Tryb kursora"><i class="ti ti-settings"></i></button><div class="cmenu" hidden>${CURSOR_MODES.map(([m, l]) =>
+          `<button data-m="${m}" class="${m === cursorMode ? "on" : ""}"><i class="ti ${CM_ICON[m]}"></i>${l}</button>`).join("")}</div></div></div><div class="sel"></div><div class="c"></div>`
       : `<h2><button class="home" title="Do góry strony" aria-label="Do góry strony"><i class="ti ti-home"></i></button>${c.wind ? `${c.t} (${wLabel()})` : c.t}</h2><div class="c"></div>`;
     box.appendChild(el);
     let root;
@@ -1088,12 +1138,11 @@ function buildCharts(rows) {
       legend.data.setAll(chart.series.values);
     }
   }
-  if (!box.children.length) box.innerHTML = `<p style="color:var(--muted)">Brak danych historycznych dla tego zakresu.</p>`;
 }
 
 // ---------- Wykres opadów: słupki sum w przedziale, natężenie chwilowe, suma narastająca ----------
 const GROUP_HOURS = { minute: 1 / 60, hour: 1, day: 24, week: 168, month: 720, year: 8760 };
-let rainSeries = [];
+let rainSeries = [], rainRange = 1;
 
 // Przyrosty opadu z licznika dziennego (zeruje się o północy) + suma narastająca od początku zakresu
 function rainIncrements(rows) {
@@ -1579,9 +1628,10 @@ async function rebuild() { try { err(); buildCharts(await loadRows()); } catch (
 async function refresh() {   // co 5 min: tylko dane, bez resetowania zoomu
   try {
     err(); await loadLatest();
-    const rows = await loadRows();
-    seriesList.forEach(({ series, key }) => series.data.setAll(seriesData(rows, key)));
-    if (rainSeries.length) { const d = rainIncrements(rows); rainSeries.forEach(s => s.data.setAll(d)); }
+    const rows = await loadRows(), byR = { [range]: rows };
+    const rowsFor = async (r) => byR[r] ??= await loadRows(r);
+    for (const { series, key, r } of seriesList) series.data.setAll(seriesData(await rowsFor(r ?? range), key));
+    if (rainSeries.length) { const d = rainIncrements(await rowsFor(rainRange)); rainSeries.forEach(s => s.data.setAll(d)); }
     if (rose) updateWindRose(roseRange === range ? rows : await loadRows(roseRange));
   } catch (e) { err(e); }
 }
