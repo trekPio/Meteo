@@ -130,6 +130,15 @@
   .charts { display:grid; grid-template-columns:1fr; gap:16px; }
   .chart { padding:12px 10px 6px; }
   .chart .c { height:340px; }
+  .near { margin:0 0 16px; }
+  .near .nmap { display:block; width:100%; background:#161b21; border-radius:8px; margin-top:6px; }
+  .near table { width:100%; border-collapse:collapse; font-size:13px; font-variant-numeric:tabular-nums; margin-top:4px; }
+  .near th { color:var(--muted); font-weight:400; font-size:12px; text-align:right; padding:6px; border-bottom:1px solid var(--line); }
+  .near td { text-align:right; padding:6px; border-bottom:1px solid #222a33; }
+  .near td:nth-child(2), .near th:nth-child(2) { text-align:left; }
+  .near tr.me td { background:#222a33; }
+  .near .na { color:#6b7785; }
+  .near .rlg i { border-radius:50%; }
   #err { color:#d9534f; }
 </style>
 </head>
@@ -154,6 +163,7 @@
   <div id="err"></div>
   <div class="gauges" id="gauges"></div>
   <div class="cards" id="cards"></div>
+  <section class="box chart near" id="ch-near"></section>
   <div class="charts" id="charts"></div>
   <div class="duo" style="margin-top:16px"><div id="rose"></div><div id="rainYear"></div></div>
   <div id="compare" style="margin-top:16px"></div>
@@ -398,7 +408,7 @@ function goToChart(key) {
 let tempUnit = "C", windUnit = "kmh", lastTiles = null;
 try { const u = JSON.parse(localStorage.getItem("meteoUnits") || "{}"); tempUnit = u.t || "C"; windUnit = u.w || "kmh"; } catch (e) {}
 const saveUnits = () => { try { localStorage.setItem("meteoUnits", JSON.stringify({ t: tempUnit, w: windUnit })); } catch (e) {} };
-const redrawTiles = () => { if (lastTiles) { updateGauges(...lastTiles.g); updateWindTile(...lastTiles.w); } };
+const redrawTiles = () => { if (lastTiles) { updateGauges(...lastTiles.g); updateWindTile(...lastTiles.w); } if (typeof NEAR !== "undefined" && NEAR.me) drawNear(); };
 const tConv = (c) => c == null ? null : tempUnit === "K" ? c + 273.15 : c;
 const tLabel = () => tempUnit === "K" ? "K" : "°C";
 
@@ -1194,6 +1204,100 @@ async function manualFetch() {
 }
 document.getElementById("hFetch").onclick = manualFetch;
 
+
+// ---------- Stacje w okolicy (publiczne stacje Netatmo, data/netatmo.json) ----------
+const NEAR = { f: "all", v: "map", me: null, list: [], fetched: 0 };
+try { const n = JSON.parse(localStorage.getItem("meteoNear") || "{}"); NEAR.f = n.f || "all"; NEAR.v = n.v || "map"; } catch (e) {}
+const nearFull = (s) => s.wind != null && s.rain_1h != null;
+const nearDc = (d) => d > 0.4 ? "#d08770" : d < -0.4 ? "#88c0d0" : "var(--muted)";
+const nearWind = (kmh) => kmh == null ? null : windUnit === "ms" ? +(kmh / 3.6).toFixed(1) : Math.round(kmh);
+
+async function loadNear(v) {
+  const el = document.getElementById("ch-near");
+  const N = await get("data/netatmo.json").catch(() => null);
+  if (!N || !N.stations?.length) { el.style.display = "none"; return; }
+  el.style.display = "";
+  NEAR.fetched = N.fetched; NEAR.list = N.stations.filter(s => s.temp != null);
+  NEAR.me = { city: "Moja stacja", lat: N.home[0], lon: N.home[1], me: true, temp: pick(v, "temp"), hum: pick(v, "hum"), pres: pick(v, "press"),
+    wind: pick(v, "wind") != null ? pick(v, "wind") * 3.6 : null, gust: pick(v, "gust") != null ? pick(v, "gust") * 3.6 : null, rain_1h: pick(v, "rain1h") ?? 0 };
+  if (!el.innerHTML) {
+    el.innerHTML = `<h2><button class="home" title="Do góry strony" aria-label="Do góry strony"><i class="ti ti-home"></i></button>Stacje w okolicy</h2>
+      <div class="ytabs"><div class="seg" id="nearF"><button data-f="all">Wszystkie</button><button data-f="full">Z wiatrem i opadem</button></div><span class="sep"></span>
+      <div class="seg" id="nearV"><button data-v="map">Mapa</button><button data-v="tab">Tabela</button></div></div>
+      <div class="sel" id="nearInfo"></div><div id="nearBody" style="padding:0 4px 8px"></div>`;
+    el.querySelectorAll("#nearF button").forEach(b => b.onclick = () => { NEAR.f = b.dataset.f; drawNear(); });
+    el.querySelectorAll("#nearV button").forEach(b => b.onclick = () => { NEAR.v = b.dataset.v; drawNear(); });
+  }
+  drawNear();
+}
+
+function drawNear() {
+  const el = document.getElementById("ch-near");
+  try { localStorage.setItem("meteoNear", JSON.stringify({ f: NEAR.f, v: NEAR.v })); } catch (e) {}
+  el.querySelectorAll("#nearF button").forEach(b => b.classList.toggle("on", b.dataset.f === NEAR.f));
+  el.querySelectorAll("#nearV button").forEach(b => b.classList.toggle("on", b.dataset.v === NEAR.v));
+  const L = NEAR.list.filter(s => NEAR.f === "all" || nearFull(s));
+  const upd = new Date(NEAR.fetched * 1000).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" });
+  el.querySelector("#nearInfo").textContent = `Netatmo · ${L.length} z ${NEAR.list.length} stacji · aktualizacja ${upd} · Δ = różnica temperatury względem Twojej stacji`;
+  el.querySelector("#nearBody").innerHTML = NEAR.v === "map" ? nearMap(L) : nearTable(L);
+}
+
+function nearTable(L) {
+  const me = NEAR.me, na = '<span class="na">–</span>';
+  const row = (s) => {
+    const d = s.temp - me.temp, w = nearWind(s.wind), g = nearWind(s.gust);
+    return `<tr class="${s.me ? "me" : ""}"><td>${s.me ? "—" : fmt(s.km) + " km"}</td><td>${s.city || "–"}</td>
+      <td>${fmt(tConv(s.temp))} ${tLabel()}</td><td style="color:${nearDc(d)}">${s.me ? "" : (d > 0 ? "+" : "") + fmt(d)}</td>
+      <td>${s.hum != null ? Math.round(s.hum) + " %" : na}</td><td>${s.pres != null ? Math.round(s.pres) : na}</td>
+      <td>${w == null ? na : `${w} / ${g ?? "–"} ${wLabel()}`}</td><td>${s.rain_1h == null ? na : fmt(s.rain_1h) + " mm"}</td></tr>`;
+  };
+  return `<table><tr><th>Odl.</th><th>Stacja</th><th>Temp.</th><th>Δ</th><th>Wilg.</th><th>Ciśn. hPa</th><th>Wiatr / porywy</th><th>Deszcz 1 h</th></tr>${[me, ...L].map(row).join("")}</table>`;
+}
+
+function nearMap(L) {
+  const me = NEAR.me, all = [me, ...NEAR.list], k = Math.cos(me.lat * Math.PI / 180), W = 900, H = 460, pad = 50;
+  const lats = all.map(s => s.lat), lons = all.map(s => s.lon);
+  const y1 = Math.max(...lats), y0 = Math.min(...lats), x0 = Math.min(...lons), x1 = Math.max(...lons);
+  const sc = Math.min((W - 2 * pad) / ((x1 - x0) * k), (H - 2 * pad - 30) / (y1 - y0));
+  const ox = (W - (x1 - x0) * k * sc) / 2, oy = (H - (y1 - y0) * sc) / 2;
+  const P = (s) => [ox + (s.lon - x0) * k * sc, oy + (y1 - s.lat) * sc];
+  // stacje bliżej niż ~4 km od siebie (np. Włocławek) – jeden znacznik z liczbą stacji i średnią temperaturą
+  const near3 = 4 * sc / 111, groups = [];
+  L.forEach(s => { const [x, y] = P(s); const g = groups.find(g => Math.hypot(g.x0 - x, g.y0 - y) < near3); if (g) g.m.push(s); else groups.push({ x0: x, y0: y, m: [s] }); });
+  groups.forEach(g => { const pts = g.m.map(P); g.x = pts.reduce((a, p) => a + p[0], 0) / pts.length; g.y = pts.reduce((a, p) => a + p[1], 0) / pts.length; });
+  const [cx, cy] = P(me), km = sc / 111;
+  let g = `<svg class="nmap" viewBox="0 0 ${W} ${H}"><clipPath id="nearClip"><rect width="${W}" height="${H}" rx="8"/></clipPath><g clip-path="url(#nearClip)">`;
+  [5, 10, 15, 20, 25, 30].forEach(r => { const R = r * km;
+    g += `<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="#2a323c" stroke-dasharray="4 5"/><text x="${cx + R * .71 + 4}" y="${cy + R * .71 + 14}" fill="#4c5869" font-size="15">${r} km</text>`; });
+  const dot = (s, x, y) => { const d = s.temp - me.temp, f = nearFull(s);
+    return `<g><title>${s.city || ""}${s.street ? ", " + s.street : ""} · ${fmt(s.km)} km\n${fmt(tConv(s.temp))} ${tLabel()}${s.hum != null ? " · " + Math.round(s.hum) + " %" : ""}${s.wind != null ? " · wiatr " + nearWind(s.wind) + " " + wLabel() : ""}${s.rain_1h != null ? " · deszcz " + fmt(s.rain_1h) + " mm" : ""}</title>
+      <circle cx="${x}" cy="${y}" r="${f ? 10 : 8}" fill="${f ? "#5aa2f0" : "#3b4552"}" stroke="#12161b" stroke-width="2"/>
+      <text x="${x}" y="${y - 16}" text-anchor="middle" fill="${nearDc(d)}" font-size="18">${fmt(tConv(s.temp))}${tempUnit === "K" ? " K" : "°"}</text></g>`; };
+  groups.forEach(G => {
+    const n = G.m.length, lab = G.m[0].city || "";
+    if (n === 1) {   // podpis pod punktem, a gdy obok jest inny znacznik – z prawej strony
+      const crowd = groups.some(o => o !== G && Math.hypot(o.x - G.x, o.y - G.y) < 60) || Math.hypot(cx - G.x, cy - G.y) < 60;
+      g += dot(G.m[0], G.x, G.y) + (crowd
+        ? `<text x="${G.x + 16}" y="${G.y + 6}" fill="#8c98a6" font-size="16">${lab}</text>`
+        : `<text x="${G.x}" y="${G.y + 30}" text-anchor="middle" fill="#8c98a6" font-size="16">${lab}</text>`);
+      return;
+    }
+    const avg = G.m.reduce((a, s) => a + s.temp, 0) / n, d = avg - me.temp, f = G.m.some(nearFull);
+    const city = Object.entries(G.m.reduce((a, s) => (a[s.city] = (a[s.city] || 0) + 1, a), {})).sort((a, b) => b[1] - a[1])[0][0];
+    const tip = G.m.map(s => `${s.city || ""}${s.street ? ", " + s.street : ""}: ${fmt(tConv(s.temp))} ${tLabel()}${s.wind != null ? " · wiatr " + nearWind(s.wind) + " " + wLabel() : ""}${s.rain_1h != null ? " · deszcz " + fmt(s.rain_1h) + " mm" : ""}`).join("\n");
+    g += `<g><title>${n} stacji, średnio ${fmt(tConv(avg))} ${tLabel()}\n${tip}</title>
+      <circle cx="${G.x}" cy="${G.y}" r="15" fill="${f ? "#5aa2f0" : "#3b4552"}" stroke="#12161b" stroke-width="2"/>
+      <circle cx="${G.x}" cy="${G.y}" r="19" fill="none" stroke="${f ? "#5aa2f0" : "#3b4552"}" stroke-opacity=".45" stroke-width="2"/>
+      <text x="${G.x}" y="${G.y + 5}" text-anchor="middle" fill="#fff" font-size="14" font-weight="600">${n}</text>
+      <text x="${G.x - 26}" y="${G.y + 6}" text-anchor="end" fill="${nearDc(d)}" font-size="18">śr. ${fmt(tConv(avg))}${tempUnit === "K" ? " K" : "°"}</text>
+      <text x="${G.x}" y="${G.y + 40}" text-anchor="middle" fill="#8c98a6" font-size="16">${city} (${n})</text></g>`;
+  });
+  g += `<g><circle cx="${cx}" cy="${cy}" r="11" fill="#a3be8c" stroke="#12161b" stroke-width="2"/>
+    <text x="${cx}" y="${cy - 19}" text-anchor="middle" fill="#fff" font-size="20">${fmt(tConv(me.temp))}${tempUnit === "K" ? " K" : "°"}</text>
+    <text x="${cx}" y="${cy + 32}" text-anchor="middle" fill="#cfd6de" font-size="16">Moja stacja</text></g></g></svg>`;
+  return g + `<div class="rlg"><span><i style="background:#a3be8c"></i>Moja stacja</span><span><i style="background:#5aa2f0"></i>Netatmo z wiatrem i opadem</span><span><i style="background:#3b4552"></i>Netatmo podstawowa</span><span>najedź na punkt, aby zobaczyć szczegóły</span></div>`;
+}
+
 // ---------- Odświeżanie ----------
 async function loadLatest() {
   const L = await get("data/latest.json"), v = L.values;
@@ -1210,6 +1314,7 @@ async function loadLatest() {
   updateWindTile(v, L.t, mxw);
   lastTiles = { g: [v, rows], w: [v, L.t, mxw] };
   updateRainTile(v, await get("data/rain_norms.json").catch(() => ({})));
+  loadNear(v).catch(() => {});
 }
 
 async function rebuild() { try { err(); buildCharts(await loadRows()); } catch (e) { err(e); } }
