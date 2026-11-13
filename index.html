@@ -49,6 +49,13 @@
   .ytabs button { border:0; background:none; color:var(--muted); padding:8px 0; cursor:pointer; font:inherit; font-size:13px; }
   .ytabs button:hover { color:var(--fg); }
   .ytabs button.on { color:var(--fg); box-shadow:inset 0 -2px 0 var(--acc); }
+  .ytabs .seg { display:flex; gap:18px; align-items:center; }
+  .ytabs .seg button { border:0; background:none; color:var(--muted); padding:8px 0; border-radius:0; font-size:13px; }
+  .ytabs .seg button:hover { color:var(--fg); }
+  .ytabs .seg button.on { background:none; color:var(--fg); box-shadow:inset 0 -2px 0 var(--acc); }
+  .ytabs .sep { width:1px; height:18px; background:var(--line); }
+  .ytabs .ydot { width:9px; height:9px; border-radius:50%; display:inline-block; margin-right:6px; vertical-align:0; }
+  .ytabs + .sel { margin-top:6px; }
   .ymenu { position:absolute; top:38px; right:6px; z-index:5; background:#222a33; border:1px solid #3b4552; border-radius:10px; padding:4px; display:grid; grid-template-columns:repeat(3,1fr); gap:2px; min-width:180px; }
   .ymenu button { padding:6px 10px; border-radius:6px; text-align:center; box-shadow:none !important; }
   .ymenu button:hover { background:#2a323c; } .ymenu button.on { background:var(--acc); color:#fff; }
@@ -143,6 +150,7 @@
   <div class="cards" id="cards"></div>
   <div class="charts" id="charts"></div>
   <div class="duo" style="margin-top:16px"><div id="rose"></div><div id="rainYear"></div></div>
+  <div id="compare" style="margin-top:16px"></div>
 </main>
 
 <script>
@@ -517,7 +525,7 @@ function buildWindRose(rows) {
   const box = document.getElementById("rose"); box.innerHTML = "";
   const { data, n } = roseData(rows);
   const el = document.createElement("section"); el.className = "box chart";
-  el.innerHTML = `<div class="chead"><h2><button class="home" title="Do góry strony" aria-label="Do góry strony"><i class="ti ti-home"></i></button>Roczny rozkład wiatrów</h2><div class="seg">${
+  el.innerHTML = `<h2><button class="home" title="Do góry strony" aria-label="Do góry strony"><i class="ti ti-home"></i></button>Roczny rozkład wiatrów</h2><div class="ytabs"><div class="seg">${
     ROSE_RANGES.map(([d, l]) => `<button data-d="${d}" class="${d === roseRange ? "on" : ""}">${l}</button>`).join("")}</div></div>
     <div class="c" style="height:540px"></div>`;
   box.appendChild(el);
@@ -709,6 +717,127 @@ async function buildRainYear(year) {
   bubbles.appear(800); cols.appear(800); chart.appear(800, 100);
 }
 
+// ---------- Porównanie temperatur (osobna oś dat dla każdego roku) ----------
+const CMP = { years: [], sel: [], kind: "temp", mode: "pan", root: null, chart: null, cursor: null, axes: [], cache: {}, idx: null };
+const CMP_COL = [0xd08770, 0x88c0d0, 0xa3be8c, 0xb48ead, 0xebcb8b];
+const cmpColor = (y) => CMP_COL[CMP.years.indexOf(y) % CMP_COL.length];
+
+async function cmpDaily(year) {   // średnia, min i maks dobowa z agregatów godzinowych
+  if (CMP.cache[year]) return CMP.cache[year];
+  const months = (CMP.idx.months || []).filter(m => m.startsWith(year + "-"));
+  const rows = (await Promise.all(months.map(m => get(`data/hourly/${m}.json`).catch(() => [])))).flat();
+  const acc = {};
+  for (const r of rows) {
+    const d = new Date(r.t * 1000).toLocaleDateString("sv-SE", { timeZone: "Europe/Warsaw" });
+    const a = acc[d] || (acc[d] = { temp: [0, 0, 1e9, -1e9], feels: [0, 0, 1e9, -1e9] });
+    for (const k of ["temp", "feels"]) { const v = pick(r, k); if (v == null) continue;
+      a[k][0] += v; a[k][1]++; a[k][2] = Math.min(a[k][2], v); a[k][3] = Math.max(a[k][3], v); }
+  }
+  const out = { temp: [], feels: [] };
+  for (const d of Object.keys(acc).sort()) for (const k of ["temp", "feels"]) {
+    const [sum, n, mn, mx] = acc[d][k]; if (!n) continue;
+    out[k].push({ t: new Date(d + "T12:00:00").getTime(), v: +(sum / n).toFixed(1), lo: +mn.toFixed(1), hi: +mx.toFixed(1) });
+  }
+  return (CMP.cache[year] = out);
+}
+
+async function buildCompare() {
+  const host = document.getElementById("compare");
+  CMP.idx = await get("data/index.json").catch(() => ({ months: [] }));
+  CMP.years = [...new Set((CMP.idx.months || []).map(m => +m.slice(0, 4)))].sort();
+  if (!CMP.years.length) return;
+  if (!CMP.sel.length) CMP.sel = CMP.years.slice(-2);
+  host.innerHTML = `<section class="box chart" id="ch-compare">
+    <h2><button class="home" title="Do góry strony" aria-label="Do góry strony"><i class="ti ti-home"></i></button>Porównanie temperatur</h2>
+    <div class="ytabs">
+      <div class="seg" id="cmpKind"><button data-k="temp">Normalna</button><button data-k="feels">Odczuwalna</button></div><span class="sep"></span>
+      <div class="seg" id="cmpCur">${CURSOR_MODES.map(([m, l]) => `<button data-m="${m}">${l}</button>`).join("")}</div><span class="sep"></span>
+      <div class="seg" id="cmpYears" title="Lata do porównania (maks. 3)">${CMP.years.map(y => `<button data-y="${y}"><i class="ydot"></i>${y}</button>`).join("")}</div>
+    </div>
+    <div class="sel" id="cmpInfo"></div><div class="c" style="height:440px"></div></section>`;
+  const paint = () => {
+    host.querySelectorAll("#cmpKind button").forEach(b => b.classList.toggle("on", b.dataset.k === CMP.kind));
+    host.querySelectorAll("#cmpCur button").forEach(b => b.classList.toggle("on", b.dataset.m === CMP.mode));
+    host.querySelectorAll("#cmpYears button").forEach(b => { const y = +b.dataset.y, on = CMP.sel.includes(y);
+      b.classList.toggle("on", on); b.querySelector(".ydot").style.background = on ? "#" + cmpColor(y).toString(16).padStart(6, "0") : "#3b4552"; });
+    document.getElementById("cmpInfo").textContent = { zoom: "Przeciągnij po wykresie, aby przybliżyć ten sam okres we wszystkich latach.",
+      select: "Zaznacz okres, aby porównać średnie temperatury lat.", pan: "Przeciągnij wykres, aby go przesunąć; kółko myszy przybliża.", none: "" }[CMP.mode];
+  };
+  host.querySelectorAll("#cmpKind button").forEach(b => b.onclick = () => { CMP.kind = b.dataset.k; paint(); cmpDraw(); });
+  host.querySelectorAll("#cmpCur button").forEach(b => b.onclick = () => {
+    CMP.mode = b.dataset.m; paint();
+    CMP.cursor.set("behavior", { zoom: "zoomX", select: "selectX", pan: "none", none: "none" }[CMP.mode]); CMP.chart.set("panX", CMP.mode === "pan");
+  });
+  host.querySelectorAll("#cmpYears button").forEach(b => b.onclick = () => {
+    const y = +b.dataset.y;
+    if (CMP.sel.includes(y)) { if (CMP.sel.length > 1) CMP.sel = CMP.sel.filter(x => x !== y); }
+    else CMP.sel = [...CMP.sel, y].sort().slice(-3);
+    paint(); cmpDraw();
+  });
+  paint(); cmpDraw();
+}
+
+async function cmpDraw() {
+  const host = document.querySelector("#ch-compare .c"); if (!host) return;
+  const data = {}; for (const y of CMP.sel) data[y] = (await cmpDaily(y))[CMP.kind];
+  if (CMP.root) CMP.root.dispose();
+  const root = am5.Root.new(host); CMP.root = root;
+  root.setThemes([am5themes_Animated.new(root), am5themes_NordDark.new(root), am5themes_Responsive.new(root)]);
+  root.locale = am5locales_pl_PL;
+  root.dateFormatter.setAll({ dateFormat: "d MMM", dateFields: ["valueX"] });
+  const chart = root.container.children.push(am5xy.XYChart.new(root, {
+    panX: CMP.mode === "pan", panY: false, wheelX: "panX", wheelY: "zoomX", pinchZoomX: true, paddingLeft: 0, layout: root.verticalLayout,
+  }));
+  CMP.chart = chart;
+  const cursor = chart.set("cursor", am5xy.XYCursor.new(root, { behavior: { zoom: "zoomX", select: "selectX", pan: "none", none: "none" }[CMP.mode] }));
+  cursor.lineY.set("visible", false); CMP.cursor = cursor;
+  const yAxis = chart.yAxes.push(am5xy.ValueAxis.new(root, { renderer: am5xy.AxisRendererY.new(root, {}), numberFormat: "#'°C'" }));
+  yAxis.get("renderer").grid.template.setAll({ strokeDasharray: [5, 5] });
+  const axes = []; CMP.axes = axes;
+  CMP.sel.forEach((y, i) => {
+    const col = am5.color(cmpColor(y));
+    const xr = am5xy.AxisRendererX.new(root, { minGridDistance: 70, opposite: i === 1 });
+    xr.labels.template.setAll({ fill: col, forceHidden: i > 1, minPosition: 0.02, maxPosition: 0.97 });
+    xr.grid.template.setAll({ forceHidden: i > 0, strokeDasharray: [5, 5] });
+    const xAxis = chart.xAxes.push(am5xy.DateAxis.new(root, {
+      baseInterval: { timeUnit: "day", count: 1 }, maxDeviation: 0, renderer: xr,
+      min: new Date(y, 0, 1).getTime(), max: new Date(y, 11, 31, 23, 59).getTime(),
+      tooltip: am5.Tooltip.new(root, {}), tooltipDateFormat: "d MMM yyyy",
+    }));
+    xAxis.get("tooltip").get("background").setAll({ fill: col });
+    axes.push(xAxis);
+    const band = chart.series.push(am5xy.LineSeries.new(root, { xAxis, yAxis, valueXField: "t", valueYField: "hi", openValueYField: "lo", fill: col, stroke: col }));
+    band.strokes.template.set("forceHidden", true); band.fills.template.setAll({ visible: true, fillOpacity: 0.08 });
+    band.data.setAll(data[y]);
+    const s = chart.series.push(am5xy.LineSeries.new(root, {
+      name: String(y), xAxis, yAxis, valueXField: "t", valueYField: "v", stroke: col, fill: col,
+      tooltip: am5.Tooltip.new(root, { labelText: `${y}: [bold]{valueY.formatNumber('#.0')}°C[/] (min {lo} / maks {hi})` }),
+    }));
+    s.strokes.template.set("strokeWidth", 1.5);
+    s.data.setAll(data[y]);
+  });
+  const sync = () => axes.slice(1).forEach(a => { a.set("start", axes[0].get("start")); a.set("end", axes[0].get("end")); });
+  if (axes.length > 1) { axes[0].on("start", sync); axes[0].on("end", sync); }
+  const legend = chart.children.push(am5.Legend.new(root, { centerX: am5.p50, x: am5.p50, marginTop: 6 }));
+  legend.labels.template.set("fontSize", 12); legend.markers.template.setAll({ width: 12, height: 12 });
+  legend.data.setAll(chart.series.values.filter(s => s.get("name")));
+  const sb = am5.Scrollbar.new(root, { orientation: "horizontal", height: 8, marginTop: 6 });
+  chart.set("scrollbarX", sb); chart.bottomAxesContainer.children.push(sb);
+  cursor.events.on("selectended", () => {   // Select: średnie lat w zaznaczonym okresie (ten sam zakres dni w każdym roku)
+    if (CMP.mode !== "select" || !axes.length) return;
+    const a0 = axes[0], p1 = cursor.getPrivate("downPositionX"), p2 = cursor.getPrivate("positionX");
+    const d1 = a0.positionToDate(a0.toAxisPosition(Math.min(p1, p2))), d2 = a0.positionToDate(a0.toAxisPosition(Math.max(p1, p2)));
+    const key = (t) => t.getMonth() * 100 + t.getDate(), k1 = key(d1), k2 = key(d2);
+    const parts = CMP.sel.map(y => {
+      const v = data[y].filter(p => { const k = key(new Date(p.t)); return k >= k1 && k <= k2; }).map(p => p.v);
+      return v.length ? `${y}: śr. ${fmt(v.reduce((a, x) => a + x, 0) / v.length)}°C` : `${y}: brak danych`;
+    });
+    const f = (d) => d.toLocaleDateString("pl-PL", { day: "numeric", month: "short" });
+    document.getElementById("cmpInfo").textContent = `${f(d1)} – ${f(d2)}:  ${parts.join("  ·  ")}`;
+  });
+  chart.appear(600, 100);
+}
+
 // ---------- Wykresy ----------
 let range = 1, chartRoots = [], seriesList = [];   // seriesList: {series, key}
 
@@ -723,7 +852,7 @@ function buildCharts(rows) {
 
     const el = document.createElement("section"); el.className = "box chart"; el.id = "ch-" + c.s[0][0];
     el.innerHTML = c.nord
-      ? `<div class="chead"><h2><button class="home" title="Do góry strony" aria-label="Do góry strony"><i class="ti ti-home"></i></button>${c.t}</h2><div class="seg">${CURSOR_MODES.map(([m, l]) =>
+      ? `<h2><button class="home" title="Do góry strony" aria-label="Do góry strony"><i class="ti ti-home"></i></button>${c.t}</h2><div class="ytabs"><div class="seg">${CURSOR_MODES.map(([m, l]) =>
           `<button data-m="${m}" class="${m === cursorMode ? "on" : ""}">${l}</button>`).join("")}</div></div><div class="sel"></div><div class="c"></div>`
       : `<h2><button class="home" title="Do góry strony" aria-label="Do góry strony"><i class="ti ti-home"></i></button>${c.wind ? `${c.t} (${wLabel()})` : c.t}</h2><div class="c"></div>`;
     box.appendChild(el);
@@ -987,6 +1116,7 @@ loadLatest().catch(err);
 rebuild();
 loadWindRose();
 buildRainYear();
+buildCompare();
 setInterval(refresh, 5 * 60 * 1000);
 </script>
 </body>
