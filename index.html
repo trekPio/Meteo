@@ -166,7 +166,7 @@ const CHARTS = [
   { t: "Temperatura (°C)", nord: true, s: [["temp", "Temperatura", "#e8684a"], ["feels", "Odczuwalna", "#f6bd16"], ["dew", "Punkt rosy", "#29a3a3"]] },
   { t: "Wilgotność (%)", s: [["hum", "Na zewnątrz", "#5b8ff9"], ["hin", "Wewnątrz", "#9270ca"]] },
   { t: "Ciśnienie (hPa)", s: [["press", "Ciśnienie", "#8c98a6"]] },
-  { t: "Wiatr (m/s)", s: [["wind", "Prędkość", "#4caf50"], ["gust", "Porywy", "#a5d6a7"]] },
+  { t: "Wiatr", wind: true, s: [["wind", "Prędkość", "#4caf50"], ["gust", "Porywy", "#a5d6a7"]] },
   { t: "Opad (mm)", rain: true, s: [["rainDay", "Opad", "#5e9fd8"]] },
   { t: "Słońce (W/m²) i UV", s: [["solar", "Promieniowanie", "#f6bd16"]], s2: [["uvi", "UV", "#e8684a"]] },
 ];
@@ -283,7 +283,10 @@ function buildGauges() {
     t.appendChild(b);
   });
   document.getElementById("u-temp").onclick = () => { tempUnit = tempUnit === "C" ? "K" : "C"; saveUnits(); redrawTiles(); };
-  document.getElementById("u-wind").onclick = () => { windUnit = windUnit === "kmh" ? "ms" : "kmh"; saveUnits(); redrawTiles(); };
+  document.getElementById("u-wind").onclick = () => {
+    windUnit = windUnit === "kmh" ? "ms" : "kmh"; saveUnits(); redrawTiles();
+    rebuild(); loadWindRose();   // wykres wiatru i róża w tej samej jednostce co kafelek
+  };
 }
 
 // ---------- Kafelek opadów ----------
@@ -498,7 +501,7 @@ function roseData(rows) {
     const o = data[Math.round(d / 22.5) % 16];
     o.n++; o.sum += w; o.max = Math.max(o.max, pick(r, "gust") ?? w); n++;
   }
-  data.forEach(o => { o.pct = n ? +(o.n / n * 100).toFixed(1) : 0; o.avg = o.n ? +(o.sum / o.n).toFixed(1) : 0; o.max = +o.max.toFixed(1); });
+  data.forEach(o => { o.pct = n ? +(o.n / n * 100).toFixed(1) : 0; o.avg = o.n ? +windConv(o.sum / o.n).toFixed(1) : 0; o.max = +windConv(o.max).toFixed(1); });
   return { data, n };
 }
 
@@ -537,10 +540,10 @@ function buildWindRose(rows) {
   const yAxis = chart.yAxes.push(am5xy.ValueAxis.new(root, { min: 0, numberFormat: "#'%'", renderer: yr }));
   const series = chart.series.push(am5radar.RadarColumnSeries.new(root, {
     name: "Wiatr", xAxis, yAxis, valueYField: "pct", categoryXField: "dir",
-    tooltip: am5.Tooltip.new(root, { labelText: "[bold]{categoryX}[/]: {valueY.formatNumber('#.0')}% czasu\nśrednio {avg} m/s · maks. {max} m/s" }),
+    tooltip: am5.Tooltip.new(root, { labelText: `[bold]{categoryX}[/]: {valueY.formatNumber('#.0')}% czasu\nśrednio {avg} ${wLabel()} · maks. {max} ${wLabel()}` }),
   }));
   series.columns.template.setAll({ width: am5.percent(80), strokeOpacity: 0, fillOpacity: 1, cornerRadius: 10,
-    tooltipText: "[bold]{categoryX}[/]: {valueY.formatNumber('#.0')}% czasu\nśrednio {avg} m/s · maks. {max} m/s", cursorOverStyle: "pointer" });
+    tooltipText: `[bold]{categoryX}[/]: {valueY.formatNumber('#.0')}% czasu\nśrednio {avg} ${wLabel()} · maks. {max} ${wLabel()}`, cursorOverStyle: "pointer" });
   // Kolor dla każdego słupka z palety motywu
   series.columns.template.adapters.add("fill", (fill, target) => chart.get("colors").getIndex(series.columns.indexOf(target)));
   series.data.setAll(data);
@@ -722,7 +725,7 @@ function buildCharts(rows) {
     el.innerHTML = c.nord
       ? `<div class="chead"><h2><button class="home" title="Do góry strony" aria-label="Do góry strony"><i class="ti ti-home"></i></button>${c.t}</h2><div class="seg">${CURSOR_MODES.map(([m, l]) =>
           `<button data-m="${m}" class="${m === cursorMode ? "on" : ""}">${l}</button>`).join("")}</div></div><div class="sel"></div><div class="c"></div>`
-      : `<h2><button class="home" title="Do góry strony" aria-label="Do góry strony"><i class="ti ti-home"></i></button>${c.t}</h2><div class="c"></div>`;
+      : `<h2><button class="home" title="Do góry strony" aria-label="Do góry strony"><i class="ti ti-home"></i></button>${c.wind ? `${c.t} (${wLabel()})` : c.t}</h2><div class="c"></div>`;
     box.appendChild(el);
     let root;
     if (c.nord) {   // styl "Data Grouping": Nord Dark + Responsive
@@ -875,7 +878,10 @@ function buildRainChart(box, c, rows) {
   const d = rainIncrements(rows); rainSeries.forEach(s => s.data.setAll(d));
 }
 
-const seriesData = (rows, key) => rows.map(r => ({ t: r.t * 1000, v: pick(r, key) })).filter(p => p.v != null);
+// Wiatr przeliczany na jednostkę wybraną na kafelku (km/h lub m/s)
+const windConv = (ms) => windUnit === "ms" ? ms : ms * 3.6;
+const WIND_KEYS = new Set(["wind", "gust"]);
+const seriesData = (rows, key) => rows.map(r => { const v = pick(r, key); return { t: r.t * 1000, v: v != null && WIND_KEYS.has(key) ? +windConv(v).toFixed(1) : v }; }).filter(p => p.v != null);
 
 async function loadRows(r = range) {
   const idx = await get("data/index.json");
