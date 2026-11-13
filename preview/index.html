@@ -1285,7 +1285,8 @@ function nearMap(L) {
     return `<g><title>PODGLĄD – ${tip1(s)}</title>
       <circle cx="${x}" cy="${y}" r="${f ? 10 : 8}" fill="${f ? "#5aa2f0" : "#3b4552"}" stroke="#12161b" stroke-width="2"/>
       <text x="${x}" y="${y - 16}" text-anchor="middle" fill="${nearDc(d)}" font-size="18">${fmt(tConv(s.temp))}${tempUnit === "K" ? " K" : "°"}</text></g>`; };
-  groups.forEach((G, gi) => {
+  const order = groups.map((G, gi) => [G, gi]).sort((a, b) => (b[0].same ? 1 : 0) - (a[0].same ? 1 : 0));   // grupy „ten sam adres” pod spodem
+  order.forEach(([G, gi]) => {
     const n = G.m.length, lab = G.m[0].city || "";
     if (n === 1) {   // podpis pod punktem, a gdy obok jest inny znacznik – z prawej strony
       const crowd = groups.some(o => o !== G && Math.hypot(o.x - G.x, o.y - G.y) < (o.same ? 90 : 60)) || Math.hypot(cx - G.x, cy - G.y) < 60;
@@ -1296,7 +1297,7 @@ function nearMap(L) {
     }
     if (G.same) {   // kilka stacji pod tym samym adresem – punkty wokół wspólnego miejsca
       const R = 30;
-      g += `<circle cx="${G.x}" cy="${G.y}" r="${R + 18}" fill="#1b2129" stroke="#2a323c"/><circle cx="${G.x}" cy="${G.y}" r="3" fill="#8c98a6"/>`;
+      g += `<circle cx="${G.x}" cy="${G.y}" r="${R + 18}" fill="#1b2129" fill-opacity=".6" stroke="#2a323c"/><circle cx="${G.x}" cy="${G.y}" r="3" fill="#8c98a6"/>`;
       G.m.forEach((s, i) => { const a = Math.PI + i * 2 * Math.PI / n, x = G.x + R * Math.cos(a), y = G.y + R * Math.sin(a) + 4; g += `<line x1="${G.x}" y1="${G.y}" x2="${x}" y2="${y}" stroke="#3b4552"/>` + dot(s, x, y); });
       g += `<text x="${G.x}" y="${G.y - R - 26}" text-anchor="middle" fill="#8c98a6" font-size="15">${lab} · ${n} stacje pod jednym adresem</text>`;
       return;
