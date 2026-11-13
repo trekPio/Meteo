@@ -33,6 +33,15 @@ jobs:
           FETCH_SOURCE: ${{ inputs.source || 'auto' }}
         run: python3 scripts/fetch.py
 
+      - name: Pobierz stacje Netatmo z okolicy
+        continue-on-error: true      # błąd Netatmo nie blokuje danych Ecowitt
+        env:
+          NETATMO_CLIENT_ID: ${{ secrets.NETATMO_CLIENT_ID }}
+          NETATMO_CLIENT_SECRET: ${{ secrets.NETATMO_CLIENT_SECRET }}
+          NETATMO_REFRESH_TOKEN: ${{ secrets.NETATMO_REFRESH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PAT_SECRETS }}
+        run: python3 scripts/netatmo.py
+
       - name: Zapisz zmiany
         run: |
           git config user.name "meteo-bot"
