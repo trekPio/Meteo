@@ -717,7 +717,7 @@ async function buildRainYear(year) {
     fill.setAll({ toggleKey: "active", cursorOverStyle: "pointer", fill: cs.getIndex(m * 2), visible: true, dRadius: 25, innerRadius: -25,
                   tooltipText: `${name}: ${fmt(monthSum[m])} mm` });
     range.get("grid").set("visible", false);
-    range.get("label").setAll({ fill: am5.color(0xffffff), textType: "circular", radius: 8,
+    range.get("label").setAll({ fill: am5.color(0x1b2129), textType: "circular", radius: 8,
       text: monthSum[m] > 0 ? `${name} · ${Math.round(monthSum[m])}` : name });
     fill.events.on("click", (ev) => { if (ev.target.get("active")) dateAxis.zoom(0, 1); else dateAxis.zoomToValues(from, to); });
   });
@@ -932,7 +932,7 @@ function tyBuildChart(el) {
     const fill = range.get("axisFill");
     fill.setAll({ visible: true, fill: cs.getIndex(m * 2), fillOpacity: 1, dRadius: 22, innerRadius: -22, cursorOverStyle: "pointer", toggleKey: "active", tooltipText: name });
     range.get("grid").set("forceHidden", true);
-    range.get("label").setAll({ forceHidden: false, text: name, fill: am5.color(0xffffff), textType: "circular", radius: 7, fontSize: 11 });
+    range.get("label").setAll({ forceHidden: false, text: name, fill: am5.color(0x1b2129), textType: "circular", radius: 7, fontSize: 11 });
     fill.events.on("click", (ev) => { if (ev.target.get("active")) xAxis.zoomToCategories(first, last); else xAxis.zoom(0, 1); });
   });
   TY.center = chart.radarContainer.children.push(am5.Label.new(root, { textAlign: "center", centerX: am5.p50, centerY: am5.p50, text: "" }));
