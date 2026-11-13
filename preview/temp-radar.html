@@ -47,7 +47,7 @@
     <div id="chartdiv"></div>
     <div class="play"><button id="playBtn" title="Odtwórz kolejne miesiące"><i class="ti ti-player-play"></i></button>
       <input type="range" id="slider" min="0" max="12" step="1" value="12"><span id="sliderLbl">Cały rok</span></div>
-    <div class="lg">−20 °C<span class="bar"></span>40 °C · słupek = zakres min–maks dnia, kolor = średnia dobowa · kliknij miesiąc, aby go przybliżyć</div>
+    <div class="lg"><span style="white-space:nowrap">−20 °C</span><span class="bar"></span><span style="white-space:nowrap">40 °C</span> · słupek = zakres min–maks dnia, kolor = średnia dobowa · kliknij miesiąc, aby go przybliżyć</div>
   </section>
 </main>
 <script>
@@ -128,7 +128,8 @@ function buildChart() {
     const fill = range.get("axisFill");
     fill.setAll({ visible: true, fill: cs.getIndex(m * 2), fillOpacity: 1, dRadius: 22, innerRadius: -22, cursorOverStyle: "pointer", toggleKey: "active" });
     range.get("grid").set("forceHidden", true);
-    range.get("label").setAll({ text: name, fill: am5.color(0xffffff), textType: "circular", radius: 7, fontSize: 11 });
+    fill.set("tooltipText", name);
+    range.get("label").setAll({ forceHidden: false, text: name, fill: am5.color(0xffffff), textType: "circular", radius: 7, fontSize: 11 });
     fill.events.on("click", (ev) => {
       if (ev.target.get("active")) xAxis.zoomToCategories(first, last); else xAxis.zoom(0, 1);
     });
