@@ -140,6 +140,21 @@
   .near .na { color:#6b7785; }
   .near .rlg i { border-radius:50%; }
   #err { color:#d9534f; }
+
+  header.hdr { position:sticky; top:0; z-index:50; margin-top:0; border-top-left-radius:0; border-top-right-radius:0; box-shadow:0 6px 16px rgba(0,0,0,.35); }
+  .secnav { display:flex; gap:22px; border-top:1px solid var(--line); margin:12px -16px 0; padding:0 16px; overflow-x:auto; }
+  .secnav button { border:0; background:none; color:var(--muted); padding:10px 0; cursor:pointer; font:inherit; font-size:14px; display:flex; align-items:center; gap:6px; white-space:nowrap; }
+  .secnav button i { font-size:17px; }
+  .secnav button:hover { color:var(--fg); }
+  .secnav button.on { color:var(--fg); box-shadow:inset 0 -2px 0 var(--acc); }
+  .mini { display:flex; flex-wrap:wrap; gap:4px 14px; font-size:13px; color:var(--muted); }
+  .mini b { color:var(--fg); font-weight:500; }
+  .mini i { font-size:15px; vertical-align:-2px; margin-right:3px; }
+  .pane:not(.on) { height:0; overflow:hidden; visibility:hidden; }
+  .pane { padding-top:12px; }
+  .pbar { padding:0 16px; margin-bottom:16px; }
+  .pbar .ranges { margin:0 -16px; border-top:0; }
+  .pbar .ptitle { display:flex; justify-content:space-between; align-items:center; padding:10px 0 0; color:var(--muted); font-size:13px; }
 </style>
 </head>
 <body>
@@ -154,20 +169,36 @@
     </div>
     <button class="hfetch" id="hFetch" title="Uruchom pobranie danych ze stacji"><i class="ti ti-refresh" id="hFi" aria-hidden="true"></i><span id="hFt">Pobierz teraz</span></button>
   </div>
-  <div class="ranges">
-    <button data-d="1" class="on">24 h</button><button data-d="3">3 dni</button>
-    <button data-d="7">7 dni</button><button data-d="30">30 dni</button><button data-d="365">Rok</button>
-  </div>
+  <div class="mini" id="mini"></div>
+  <nav class="secnav" id="secnav">
+    <button data-p="teraz"><i class="ti ti-gauge"></i>Teraz</button>
+    <button data-p="wykresy"><i class="ti ti-chart-line"></i>Wykresy</button>
+    <button data-p="klimat"><i class="ti ti-calendar-stats"></i>Klimat</button>
+    <button data-p="okolica"><i class="ti ti-map-pin"></i>Okolica</button>
+  </nav>
 </header>
 <main>
   <div id="err"></div>
-  <div class="gauges" id="gauges"></div>
-  <div class="cards" id="cards"></div>
-  <section class="box chart near" id="ch-near"></section>
-  <div class="charts" id="charts"></div>
-  <div class="duo" style="margin-top:16px"><div id="rose"></div><div id="rainYear"></div></div>
-  <div id="compare" style="margin-top:16px"></div>
-  <div id="tempYear" style="margin-top:16px"></div>
+  <div class="pane" data-p="teraz">
+    <div class="gauges" id="gauges"></div>
+    <div class="cards" id="cards"></div>
+  </div>
+  <div class="pane" data-p="wykresy">
+    <div class="box pbar"><div class="ptitle"><span>Zakres wykresów</span></div>
+      <div class="ranges">
+        <button data-d="1" class="on">24 h</button><button data-d="3">3 dni</button>
+        <button data-d="7">7 dni</button><button data-d="30">30 dni</button><button data-d="365">Rok</button>
+      </div></div>
+    <div class="charts" id="charts"></div>
+  </div>
+  <div class="pane" data-p="klimat">
+    <div class="duo"><div id="rose"></div><div id="rainYear"></div></div>
+    <div id="compare" style="margin-top:16px"></div>
+    <div id="tempYear" style="margin-top:16px"></div>
+  </div>
+  <div class="pane" data-p="okolica">
+    <section class="box chart near" id="ch-near"></section>
+  </div>
 </main>
 
 <script>
@@ -394,13 +425,19 @@ function updateRainTile(v, norms) {
 
 // Domek przy wykresach: powrót do nagłówka strony
 document.addEventListener("click", (e) => {
-  if (e.target.closest(".chart .home")) document.querySelector("header.hdr").scrollIntoView({ behavior: "smooth", block: "start" });
+  if (e.target.closest(".chart .home")) { showPane("teraz"); window.scrollTo({ top: 0, behavior: "smooth" }); }
 });
 
-function goToChart(key) {
-  const el = document.getElementById("ch-" + key);
-  if (!el) return;
-  el.scrollIntoView({ behavior: "smooth", block: "start" });
+async function goToChart(key) {
+  let el = document.getElementById("ch-" + key);
+  if (!el) {   // wykres w sekcji jeszcze nie zbudowanej
+    showPane("wykresy");
+    for (let i = 0; i < 50 && !(el = document.getElementById("ch-" + key)); i++) await new Promise(r => setTimeout(r, 100));
+    if (!el) return;
+  }
+  const pn = el.closest(".pane"); if (pn) showPane(pn.dataset.p);
+  const hh = document.querySelector("header.hdr").offsetHeight;
+  requestAnimationFrame(() => window.scrollTo({ top: el.getBoundingClientRect().top + scrollY - hh - 12, behavior: "smooth" }));
   el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash");
 }
 
@@ -408,7 +445,7 @@ function goToChart(key) {
 let tempUnit = "C", windUnit = "kmh", lastTiles = null;
 try { const u = JSON.parse(localStorage.getItem("meteoUnits") || "{}"); tempUnit = u.t || "C"; windUnit = u.w || "kmh"; } catch (e) {}
 const saveUnits = () => { try { localStorage.setItem("meteoUnits", JSON.stringify({ t: tempUnit, w: windUnit })); } catch (e) {} };
-const redrawTiles = () => { if (lastTiles) { updateGauges(...lastTiles.g); updateWindTile(...lastTiles.w); } if (typeof NEAR !== "undefined" && NEAR.me) drawNear(); };
+const redrawTiles = () => { if (lastTiles) { updateGauges(...lastTiles.g); updateWindTile(...lastTiles.w); updateMini(lastTiles.g[0]); } if (typeof NEAR !== "undefined" && NEAR.me) drawNear(); };
 const tConv = (c) => c == null ? null : tempUnit === "K" ? c + 273.15 : c;
 const tLabel = () => tempUnit === "K" ? "K" : "°C";
 
@@ -1393,7 +1430,7 @@ async function loadLatest() {
   const man = L.src === "manual", hs = document.getElementById("hSrc");
   hs.className = "src" + (man ? " man" : "");
   hs.innerHTML = L.src ? (man ? '<i class="ti ti-hand-click"></i>Ręcznie' : '<i class="ti ti-clock"></i>Automat (cron)') : "";
-  updateCards(v);
+  updateCards(v); updateMini(v);
   const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Warsaw" });
   const rows = await get(`data/days/${today}.json`).catch(() => []);
   updateGauges(v, rows);
@@ -1413,7 +1450,7 @@ async function refresh() {   // co 5 min: tylko dane, bez resetowania zoomu
     const rows = await loadRows();
     seriesList.forEach(({ series, key }) => series.data.setAll(seriesData(rows, key)));
     if (rainSeries.length) { const d = rainIncrements(rows); rainSeries.forEach(s => s.data.setAll(d)); }
-    updateWindRose(roseRange === range ? rows : await loadRows(roseRange));
+    if (rose) updateWindRose(roseRange === range ? rows : await loadRows(roseRange));
   } catch (e) { err(e); }
 }
 
@@ -1422,13 +1459,40 @@ document.querySelectorAll(".ranges button").forEach(b => b.onclick = () => {
   range = +b.dataset.d; rebuild();
 });
 
+// ---------- Sekcje strony (Teraz / Wykresy / Klimat / Okolica) ----------
+// Wykresy amCharts budowane dopiero przy pierwszym otwarciu sekcji
+const BUILT = {};
+function ensurePane(p) {
+  if (BUILT[p]) return; BUILT[p] = true;
+  if (p === "wykresy") rebuild();
+  if (p === "klimat") { loadWindRose(); buildRainYear(); buildCompare(); buildTempYear(); }
+}
+const PANES = ["teraz", "wykresy", "klimat", "okolica"];
+function showPane(p, push = true) {
+  if (!PANES.includes(p)) p = "teraz";
+  document.querySelectorAll(".pane").forEach(x => x.classList.toggle("on", x.dataset.p === p));
+  document.querySelectorAll("#secnav button").forEach(b => b.classList.toggle("on", b.dataset.p === p));
+  try { localStorage.setItem("meteoPane", p); } catch (e) {}
+  ensurePane(p);
+  if (push && location.hash !== "#" + p) history.replaceState(null, "", "#" + p);
+  window.dispatchEvent(new Event("resize"));
+}
+document.querySelectorAll("#secnav button").forEach(b => b.onclick = () => { showPane(b.dataset.p); window.scrollTo({ top: 0 }); });
+window.addEventListener("hashchange", () => showPane(location.hash.slice(1), false));
+showPane(location.hash.slice(1) || (() => { try { return localStorage.getItem("meteoPane"); } catch (e) { return null; } })() || "teraz");
+
+function updateMini(v) {
+  const t = pick(v, "temp"), h = pick(v, "hum"), p = pick(v, "press"), w = pick(v, "wind"), r = pick(v, "rainDay");
+  const tv = t == null ? "–" : fmt(tConv(t), tempUnit === "K" ? 1 : 1).replace("-", "−") + " " + tLabel();
+  const wv = w == null ? "–" : (windUnit === "kmh" ? fmt(w * 3.6, 0) + " km/h" : fmt(w, 1) + " m/s");
+  document.getElementById("mini").innerHTML =
+    `<span><i class="ti ti-temperature"></i><b>${tv}</b></span><span><i class="ti ti-droplet"></i><b>${h == null ? "–" : fmt(h, 0)}</b> %</span>` +
+    `<span><i class="ti ti-gauge"></i><b>${p == null ? "–" : fmt(p, 0)}</b> hPa</span><span><i class="ti ti-wind"></i><b>${wv}</b></span>` +
+    `<span><i class="ti ti-umbrella"></i><b>${r == null ? "–" : fmt(r, 1)}</b> mm dziś</span>`;
+}
+
 buildGauges();
 loadLatest().catch(err);
-rebuild();
-loadWindRose();
-buildRainYear();
-buildCompare();
-buildTempYear();
 setInterval(refresh, 5 * 60 * 1000);
 </script>
 </body>
