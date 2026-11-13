@@ -18,9 +18,10 @@
   .box { background:#1b2129; border:1px solid #2a323c; border-radius:12px; padding:12px 10px 8px; }
   .hd { display:flex; justify-content:space-between; align-items:center; gap:8px; margin:0 4px 4px; flex-wrap:wrap; }
   .hd h2 { margin:0; font-size:13px; color:#8c98a6; letter-spacing:.04em; font-weight:600; text-transform:uppercase; }
-  .seg { display:flex; gap:4px; }
-  .seg button { border:1px solid #2a323c; background:transparent; color:#8c98a6; padding:3px 10px; border-radius:6px; font:inherit; font-size:12px; cursor:pointer; }
-  .seg button.on { background:#5aa2f0; border-color:#5aa2f0; color:#fff; }
+  .tabs { display:flex; gap:18px; border-top:1px solid #2a323c; border-bottom:1px solid #2a323c; margin:8px -10px 0; padding:0 14px; overflow-x:auto; }
+  .tabs button { border:0; background:none; color:#8c98a6; padding:9px 0; cursor:pointer; font:inherit; font-size:13px; }
+  .tabs button:hover { color:#e7ecf1; }
+  .tabs button.on { color:#e7ecf1; box-shadow:inset 0 -2px 0 #5aa2f0; }
   #chartdiv { height:720px; }
   .hint { color:#8c98a6; font-size:12px; margin:4px 6px 0; }
 </style>
@@ -29,7 +30,8 @@
 <main>
   <p class="note">Strona testowa – podgląd rocznego wykresu opadów na prawdziwych danych. Główna strona: <a href="../" style="color:#88c0d0">trekpio.github.io/Meteo</a></p>
   <section class="box">
-    <div class="hd"><h2>Opady w roku</h2><div class="seg" id="years"></div></div>
+    <div class="hd"><h2>Opady w roku</h2></div>
+    <div class="tabs" id="years"></div>
     <div id="chartdiv"></div>
     <p class="hint">Słupki: suma opadu w tygodniu · bąble: dni z opadem (wielkość = suma dobowa) w rzędzie dnia tygodnia · kliknij miesiąc, aby go przybliżyć, kliknij ponownie, aby oddalić.</p>
   </section>
