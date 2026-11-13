@@ -1278,7 +1278,7 @@ function nearMap(L) {
     g.same = g.m.length > 1 && g.m.every(s => nearKm(s, g.m[0]) < 0.3); });   // praktycznie ten sam adres – rozsunięcie na okręgu
   const [cx, cy] = P(me), km = sc / 111;
   let g = `<svg class="nmap" viewBox="0 0 ${W} ${H}"><clipPath id="nearClip"><rect width="${W}" height="${H}" rx="8"/></clipPath><g clip-path="url(#nearClip)">`;
-  g += nearBaseLayer(P, V.z, [...groups.map(G => [G.x, G.y]), [cx, cy]]);
+  g += nearBaseLayer(P, V.z, [...groups.map(G => [G.x, G.y]), ...groups.filter(G => G.same).map(G => [G.x, G.y - 56]), [cx, cy]]);
   const step = [0.5, 1, 2, 5, 10].find(r => r * km > 70) || 5;
   for (let r = step; r <= 40; r += step) { const R = r * km;
     g += `<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="#2a323c" stroke-dasharray="4 5"/><text x="${cx + R * .71 + 4}" y="${cy + R * .71 + 14}" fill="#4c5869" font-size="15">${fmt(r, r < 1 ? 1 : 0)} km</text>`; }
