@@ -1278,7 +1278,7 @@ function nearMap(L) {
     g.same = g.m.length > 1 && g.m.every(s => nearKm(s, g.m[0]) < 0.3); });   // praktycznie ten sam adres – rozsunięcie na okręgu
   const [cx, cy] = P(me), km = sc / 111;
   let g = `<svg class="nmap" viewBox="0 0 ${W} ${H}"><clipPath id="nearClip"><rect width="${W}" height="${H}" rx="8"/></clipPath><g clip-path="url(#nearClip)">`;
-  g += nearBaseLayer(P, V.z);
+  g += nearBaseLayer(P, V.z, [...groups.map(G => [G.x, G.y]), [cx, cy]]);
   const step = [0.5, 1, 2, 5, 10].find(r => r * km > 70) || 5;
   for (let r = step; r <= 40; r += step) { const R = r * km;
     g += `<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="#2a323c" stroke-dasharray="4 5"/><text x="${cx + R * .71 + 4}" y="${cy + R * .71 + 14}" fill="#4c5869" font-size="15">${fmt(r, r < 1 ? 1 : 0)} km</text>`; }
@@ -1323,27 +1323,32 @@ function nearMap(L) {
   const zb = (ic, act, t) => `<button class="home" data-z="${act}" title="${t}" aria-label="${t}"><i class="ti ${ic}"></i></button>`;
   return `<div style="position:relative">${g}<div style="position:absolute;top:10px;right:10px;display:flex;flex-direction:column;gap:4px">${
     zb("ti-plus", "in", "Przybliż")}${zb("ti-minus", "out", "Oddal")}${V.z > 1.01 ? zb("ti-focus-centered", "reset", "Cała okolica") : ""}</div></div>
-    <div class="rlg"><span><i style="background:#a3be8c"></i>Moja stacja</span><span><i style="background:#5aa2f0"></i>Netatmo z wiatrem i opadem</span><span><i style="background:#3b4552"></i>Netatmo podstawowa</span><span>kliknij grupę, aby przybliżyć · kółko myszy przybliża, przeciągnięcie przesuwa</span>${NEAR.base?.src ? `<span style="margin-left:auto">${NEAR.base.src}</span>` : ""}</div>`;
+    <div class="rlg"><span><i style="background:#a3be8c"></i>Moja stacja</span><span><i style="background:#5aa2f0"></i>Netatmo z wiatrem i opadem</span><span><i style="background:#3b4552"></i>Netatmo podstawowa</span><span>kliknij grupę, aby przybliżyć · kółko myszy przybliża, przeciągnięcie przesuwa</span></div>${NEAR.base?.src ? `<div style="text-align:right;font-size:11px;color:#4c5869;margin:2px 6px 0">Podkład: ${NEAR.base.src}</div>` : ""}`;
 }
 
 
 // Podkład: rzeki, drogi, miejscowości (data/near_map.json); grubości linii stałe w pikselach
 const NEAR_RIVERS = /^(Wisła|Rakutówka|Lubienka|Zgłowiączka)$/;   // podpisywane zawsze; pozostałe cieki po przybliżeniu
 const NEAR_ROAD = { motorway: ["#8a7650", 3.2], trunk: ["#6f6a5e", 2.6], primary: ["#56606b", 2], secondary: ["#3b4552", 1.4] };
-function nearBaseLayer(P, z) {
+function nearBaseLayer(P, z, marks = []) {
   const B = NEAR.base; if (!B || !B.roads) return "";
   const path = (c) => "M" + c.map(p => P({ lon: p[0], lat: p[1] }).map(v => v.toFixed(1)).join(",")).join("L");
   let g = "";
-  B.rivers.forEach(r => { const big = r.t === "river" && /Wisła/.test(r.n), w = big ? 7 + Math.min(z, 8) : r.t === "river" ? 2.4 : 1.6;
+  B.rivers.filter(r => r.t === "river" || NEAR_RIVERS.test(r.n) || z >= 2).forEach(r => { const big = r.t === "river" && /Wisła/.test(r.n), w = big ? 7 + Math.min(z, 8) : r.t === "river" || NEAR_RIVERS.test(r.n) ? 2.4 : 1.4;
     g += `<path d="${path(r.c)}" fill="none" stroke="#24435a" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" opacity="${big ? .9 : .8}"/>`; });
   B.roads.forEach(r => { const [col, w] = NEAR_ROAD[r.t];
     g += `<path d="${path(r.c)}" fill="none" stroke="${col}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" opacity=".75"/>`; });
   // nazwy rzek (raz, przy najdłuższym odcinku) i numery głównych dróg
   const lab = {};
   B.rivers.filter(r => r.n && (NEAR_RIVERS.test(r.n) || z >= 3)).forEach(r => { if (!lab[r.n] || r.c.length > lab[r.n].c.length) lab[r.n] = r; });
-  Object.values(lab).forEach(r => { const p = P({ lon: r.c[r.c.length >> 1][0], lat: r.c[r.c.length >> 1][1] });
+  const free = (x, y) => !marks.some(m => Math.abs(m[0] - x) < 90 && Math.abs(m[1] - y) < 40);
+  Object.values(lab).forEach(r => {   // podpis rzeki w pierwszym wolnym miejscu jej przebiegu (od środka)
+    const n = r.c.length, idx = [...Array(n).keys()].sort((a, b) => Math.abs(a - n / 2) - Math.abs(b - n / 2));
+    const i = idx.find(i => { const q = P({ lon: r.c[i][0], lat: r.c[i][1] }); return free(q[0], q[1] - 8) && q[0] > 40 && q[0] < NEAR_W - 40 && q[1] > 20 && q[1] < NEAR_H - 10; });
+    if (i == null) return; const p = P({ lon: r.c[i][0], lat: r.c[i][1] });
     g += `<text x="${p[0]}" y="${p[1] - 8}" fill="#4f7894" font-size="13" font-style="italic" text-anchor="middle">${r.n}</text>`; });
   B.places.filter(p => p.t !== "village" || z >= 2.5).forEach(p => { const [x, y] = P(p), big = p.t !== "village";
+    if (!free(x, y)) return;   // nie pod znacznikami stacji
     g += `<text x="${x}" y="${y}" fill="${big ? "#5d6976" : "#46505b"}" font-size="${p.t === "city" ? 17 : big ? 15 : 12}" text-anchor="middle">${p.n}</text>`; });
   return g;
 }
