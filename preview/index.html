@@ -443,7 +443,7 @@ function goToChart(key) {
 let tempUnit = "C", windUnit = "kmh", lastTiles = null;
 try { const u = JSON.parse(localStorage.getItem("meteoUnits") || "{}"); tempUnit = u.t || "C"; windUnit = u.w || "kmh"; } catch (e) {}
 const saveUnits = () => { try { localStorage.setItem("meteoUnits", JSON.stringify({ t: tempUnit, w: windUnit })); } catch (e) {} };
-const redrawTiles = () => { if (lastTiles) { updateGauges(...lastTiles.g); updateWindTile(...lastTiles.w); } if (typeof NEAR !== "undefined" && NEAR.me) drawNear(); };
+const redrawTiles = () => { if (lastTiles) { updateGauges(...lastTiles.g); updateWindTile(...lastTiles.w); updateMini(lastTiles.g[0]); } if (typeof NEAR !== "undefined" && NEAR.me) drawNear(); };
 const tConv = (c) => c == null ? null : tempUnit === "K" ? c + 273.15 : c;
 const tLabel = () => tempUnit === "K" ? "K" : "°C";
 
