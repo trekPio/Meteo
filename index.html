@@ -1275,7 +1275,13 @@ function nearMap(L) {
       <text x="${x}" y="${y - 16}" text-anchor="middle" fill="${nearDc(d)}" font-size="18">${fmt(tConv(s.temp))}${tempUnit === "K" ? " K" : "°"}</text></g>`; };
   groups.forEach(G => {
     const n = G.m.length, lab = G.m[0].city || "";
-    if (n === 1) { g += dot(G.m[0], G.x, G.y) + `<text x="${G.x}" y="${G.y + 30}" text-anchor="middle" fill="#8c98a6" font-size="16">${lab}</text>`; return; }
+    if (n === 1) {   // podpis pod punktem, a gdy obok jest inny znacznik – z prawej strony
+      const crowd = groups.some(o => o !== G && Math.hypot(o.x - G.x, o.y - G.y) < 60) || Math.hypot(cx - G.x, cy - G.y) < 60;
+      g += dot(G.m[0], G.x, G.y) + (crowd
+        ? `<text x="${G.x + 16}" y="${G.y + 6}" fill="#8c98a6" font-size="16">${lab}</text>`
+        : `<text x="${G.x}" y="${G.y + 30}" text-anchor="middle" fill="#8c98a6" font-size="16">${lab}</text>`);
+      return;
+    }
     const avg = G.m.reduce((a, s) => a + s.temp, 0) / n, d = avg - me.temp, f = G.m.some(nearFull);
     const city = Object.entries(G.m.reduce((a, s) => (a[s.city] = (a[s.city] || 0) + 1, a), {})).sort((a, b) => b[1] - a[1])[0][0];
     const tip = G.m.map(s => `${s.city || ""}${s.street ? ", " + s.street : ""}: ${fmt(tConv(s.temp))} ${tLabel()}${s.wind != null ? " · wiatr " + nearWind(s.wind) + " " + wLabel() : ""}${s.rain_1h != null ? " · deszcz " + fmt(s.rain_1h) + " mm" : ""}`).join("\n");
