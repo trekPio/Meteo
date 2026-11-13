@@ -56,6 +56,12 @@
   .ytabs .sep { width:1px; height:18px; background:var(--line); }
   .ytabs .ydot { width:9px; height:9px; border-radius:50%; display:inline-block; margin-right:6px; vertical-align:0; }
   .ytabs + .sel { margin-top:6px; }
+  .typlay { display:flex; align-items:center; gap:12px; margin:0 8px; }
+  .typlay button { width:34px; height:34px; border-radius:50%; border:1.5px solid #3b4552; background:#222a33; color:var(--fg); font-size:16px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; }
+  .typlay input { flex:1; accent-color:var(--acc); }
+  .typlay span { color:var(--muted); font-size:13px; min-width:110px; text-align:right; }
+  .tylg { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:8px 8px 2px; font-size:12px; color:var(--muted); }
+  .tylg .bar { flex:0 0 200px; height:8px; border-radius:4px; background:linear-gradient(90deg,#3f7bd9 0%,#3f7bd9 16.7%,#88c0d0 33.3%,#ebcb8b 50%,#ebcb8b 83.3%,#bf616a 100%); }
   .ymenu { position:absolute; top:38px; right:6px; z-index:5; background:#222a33; border:1px solid #3b4552; border-radius:10px; padding:4px; display:grid; grid-template-columns:repeat(3,1fr); gap:2px; min-width:180px; }
   .ymenu button { padding:6px 10px; border-radius:6px; text-align:center; box-shadow:none !important; }
   .ymenu button:hover { background:#2a323c; } .ymenu button.on { background:var(--acc); color:#fff; }
@@ -151,6 +157,7 @@
   <div class="charts" id="charts"></div>
   <div class="duo" style="margin-top:16px"><div id="rose"></div><div id="rainYear"></div></div>
   <div id="compare" style="margin-top:16px"></div>
+  <div id="tempYear" style="margin-top:16px"></div>
 </main>
 
 <script>
@@ -838,6 +845,117 @@ async function cmpDraw() {
   chart.appear(600, 100);
 }
 
+// ---------- Roczne zestawienie temperatury (Radar Timeline: dni wokół koła, miesiące, odtwarzanie) ----------
+const TY = { years: [], year: null, kind: "temp", cache: {}, idx: null, root: null, series: null, mean: null, xAxis: null, center: null, timer: null };
+const TY_MS = ["Sty", "Lut", "Mar", "Kwi", "Maj", "Cze", "Lip", "Sie", "Wrz", "Paź", "Lis", "Gru"];
+const TY_MONTHS = ["styczeń", "luty", "marzec", "kwiecień", "maj", "czerwiec", "lipiec", "sierpień", "wrzesień", "październik", "listopad", "grudzień"];
+const TY_DAYS = [];   // 365 kategorii (bez 29 lutego): "01-01" … "12-31"
+for (let m = 0; m < 12; m++) { const n = new Date(2025, m + 1, 0).getDate(); for (let d = 1; d <= n; d++) TY_DAYS.push({ cat: `${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`, m, d }); }
+
+async function tyStats(y) {
+  if (TY.cache[y]) return TY.cache[y];
+  const months = (TY.idx.months || []).filter(m => m.startsWith(y + "-"));
+  const rows = (await Promise.all(months.map(m => get(`data/hourly/${m}.json`).catch(() => [])))).flat();
+  const acc = {};
+  for (const r of rows) {
+    const d = new Date(r.t * 1000).toLocaleDateString("sv-SE", { timeZone: "Europe/Warsaw" }).slice(5);
+    const a = acc[d] || (acc[d] = { temp: [0, 0, 1e9, -1e9], feels: [0, 0, 1e9, -1e9] });
+    for (const k of ["temp", "feels"]) { const v = pick(r, k); if (v == null) continue;
+      a[k][0] += v; a[k][1]++; a[k][2] = Math.min(a[k][2], v); a[k][3] = Math.max(a[k][3], v); }
+  }
+  return (TY.cache[y] = acc);
+}
+
+async function buildTempYear() {
+  const host = document.getElementById("tempYear");
+  TY.idx = await get("data/index.json").catch(() => ({ months: [] }));
+  TY.years = [...new Set((TY.idx.months || []).map(m => +m.slice(0, 4)))].sort();
+  if (!TY.years.length) return;
+  TY.year = TY.year ?? TY.years[TY.years.length - 1];
+  host.innerHTML = `<section class="box chart" id="ch-tempYear">
+    <h2><button class="home" title="Do góry strony" aria-label="Do góry strony"><i class="ti ti-home"></i></button>Roczne zestawienie temperatury</h2>
+    <div class="ytabs">
+      <div class="seg" id="tyKind"><button data-k="temp">Normalna</button><button data-k="feels">Odczuwalna</button></div><span class="sep"></span>
+      <div class="seg" id="tyYears">${TY.years.map(y => `<button data-y="${y}">${y}</button>`).join("")}</div>
+    </div>
+    <div class="c" style="height:640px"></div>
+    <div class="typlay"><button id="tyPlay" title="Odtwórz kolejne miesiące"><i class="ti ti-player-play"></i></button>
+      <input type="range" id="tySlider" min="0" max="12" step="1" value="12"><span id="tyLbl">Cały rok</span></div>
+    <div class="tylg"><span>−20 °C</span><span class="bar"></span><span>40 °C</span><span>· słupek = zakres min–maks dnia, kolor = średnia dobowa · kliknij miesiąc, aby go przybliżyć</span></div>
+  </section>`;
+  const paint = () => {
+    host.querySelectorAll("#tyKind button").forEach(b => b.classList.toggle("on", b.dataset.k === TY.kind));
+    host.querySelectorAll("#tyYears button").forEach(b => b.classList.toggle("on", +b.dataset.y === TY.year));
+  };
+  const slider = host.querySelector("#tySlider"), btn = host.querySelector("#tyPlay");
+  const stop = () => { if (TY.timer) { clearInterval(TY.timer); TY.timer = null; btn.innerHTML = '<i class="ti ti-player-play"></i>'; } };
+  host.querySelectorAll("#tyKind button").forEach(b => b.onclick = () => { TY.kind = b.dataset.k; paint(); tyUpdate(+slider.value); });
+  host.querySelectorAll("#tyYears button").forEach(b => b.onclick = () => { TY.year = +b.dataset.y; paint(); stop(); slider.value = 12; tyUpdate(12); });
+  slider.oninput = () => { stop(); tyUpdate(+slider.value); };
+  btn.onclick = () => {
+    if (TY.timer) return stop();
+    let m = 0; slider.value = 0; tyUpdate(0); btn.innerHTML = '<i class="ti ti-player-pause"></i>';
+    TY.timer = setInterval(() => { m++; if (m > 12) return stop(); slider.value = m; tyUpdate(m); }, 900);
+  };
+  paint(); tyBuildChart(host.querySelector(".c")); tyUpdate(12);
+}
+
+function tyBuildChart(el) {
+  if (TY.root) TY.root.dispose();
+  const root = am5.Root.new(el); TY.root = root;
+  const t = am5.Theme.new(root); t.rule("Label").set("fontSize", 11); t.rule("Grid").set("strokeOpacity", 0.07);
+  root.setThemes([am5themes_Animated.new(root), am5themes_NordDark.new(root), t, am5themes_Responsive.new(root)]);
+  const chart = root.container.children.push(am5radar.RadarChart.new(root, {
+    panX: false, panY: false, wheelX: "panX", wheelY: "zoomX", innerRadius: am5.percent(28), radius: am5.percent(86),
+    startAngle: -84, endAngle: 264,   // przerwa u góry na oś temperatury
+  }));
+  chart.set("cursor", am5radar.RadarCursor.new(root, { behavior: "zoomX" })).lineY.set("visible", false);
+  const xr = am5radar.AxisRendererCircular.new(root, { minGridDistance: 12 });
+  xr.labels.template.set("forceHidden", true); xr.grid.template.set("forceHidden", true);
+  const xAxis = chart.xAxes.push(am5xy.CategoryAxis.new(root, { categoryField: "cat", renderer: xr })); TY.xAxis = xAxis;
+  const yr = am5radar.AxisRendererRadial.new(root, { axisAngle: -90, minGridDistance: 26 });
+  yr.labels.template.setAll({ centerX: am5.p50, fontSize: 10 });
+  const yAxis = chart.yAxes.push(am5xy.ValueAxis.new(root, { renderer: yr, min: -25, max: 40, strictMinMax: true, numberFormat: "#'°'" }));
+  const zero = yAxis.createAxisRange(yAxis.makeDataItem({ value: 0 }));
+  zero.get("grid").setAll({ stroke: am5.color(0x88c0d0), strokeOpacity: 0.45, strokeDasharray: [4, 4] });
+  const series = chart.series.push(am5radar.RadarColumnSeries.new(root, { xAxis, yAxis, categoryXField: "cat", valueYField: "hi", openValueYField: "lo" }));
+  series.columns.template.setAll({ width: am5.percent(75), strokeOpacity: 0, cornerRadius: 2,
+    tooltipText: "[bold]{label}[/]\nśrednio {mean}°C\nmin {lo}°C · maks {hi}°C" });
+  series.columns.template.adapters.add("fill", (fill, target) => { const m = target.dataItem?.dataContext?.mean; return m == null ? fill : am5.color(tempColor(m)); });
+  TY.series = series;
+  const mean = chart.series.push(am5radar.RadarLineSeries.new(root, { xAxis, yAxis, categoryXField: "cat", valueYField: "mean", stroke: am5.color(0xe7ecf1), connectEnds: false }));
+  mean.strokes.template.setAll({ strokeWidth: 1, strokeOpacity: 0.5 }); TY.mean = mean;
+  const cs = am5.ColorSet.new(root, {});
+  TY_MS.forEach((name, m) => {
+    const first = TY_DAYS.find(d => d.m === m).cat, last = [...TY_DAYS].reverse().find(d => d.m === m).cat;
+    const range = xAxis.createAxisRange(xAxis.makeDataItem({ above: true, category: first, endCategory: last }));
+    const fill = range.get("axisFill");
+    fill.setAll({ visible: true, fill: cs.getIndex(m * 2), fillOpacity: 1, dRadius: 22, innerRadius: -22, cursorOverStyle: "pointer", toggleKey: "active", tooltipText: name });
+    range.get("grid").set("forceHidden", true);
+    range.get("label").setAll({ forceHidden: false, text: name, fill: am5.color(0xffffff), textType: "circular", radius: 7, fontSize: 11 });
+    fill.events.on("click", (ev) => { if (ev.target.get("active")) xAxis.zoomToCategories(first, last); else xAxis.zoom(0, 1); });
+  });
+  TY.center = chart.radarContainer.children.push(am5.Label.new(root, { textAlign: "center", centerX: am5.p50, centerY: am5.p50, text: "" }));
+  chart.appear(800, 100);
+}
+
+async function tyUpdate(month = 12) {
+  const acc = await tyStats(TY.year), y = TY.year;
+  const data = TY_DAYS.map(({ cat, m, d }) => {
+    const a = acc[cat]?.[TY.kind], show = a && a[1] && (month === 12 || m <= month), label = `${d} ${TY_MS[m].toLowerCase()} ${y}`;
+    return show ? { cat, lo: +a[2].toFixed(1), hi: +a[3].toFixed(1), mean: +(a[0] / a[1]).toFixed(1), label } : { cat, label };
+  });
+  TY.xAxis.data.setAll(data); TY.series.data.setAll(data); TY.mean.data.setAll(data);
+  const vals = data.filter(x => x.mean != null);
+  if (vals.length) {
+    const avg = vals.reduce((a, x) => a + x.mean, 0) / vals.length;
+    const mn = vals.reduce((a, x) => x.lo < a.lo ? x : a), mx = vals.reduce((a, x) => x.hi > a.hi ? x : a);
+    const short = (l) => l.replace(" " + y, "");
+    TY.center.set("text", `[fontSize:2.2em bold]${y}[/]\n[fontSize:1em]${month === 12 ? "średnia roczna" : "średnia do: " + TY_MONTHS[month]}[/]\n[fontSize:1.5em]${fmt(avg)}°C[/]\n[fontSize:0.85em #88c0d0]min ${fmt(mn.lo)}° (${short(mn.label)})[/]\n[fontSize:0.85em #d08770]maks ${fmt(mx.hi)}° (${short(mx.label)})[/]`);
+  } else TY.center.set("text", `[fontSize:2.2em bold]${y}[/]\n[fontSize:1em]brak danych[/]`);
+  const lbl = document.getElementById("tyLbl"); if (lbl) lbl.textContent = month === 12 ? "Cały rok" : "do: " + TY_MONTHS[month];
+}
+
 // ---------- Wykresy ----------
 let range = 1, chartRoots = [], seriesList = [];   // seriesList: {series, key}
 
@@ -1117,6 +1235,7 @@ rebuild();
 loadWindRose();
 buildRainYear();
 buildCompare();
+buildTempYear();
 setInterval(refresh, 5 * 60 * 1000);
 </script>
 </body>
