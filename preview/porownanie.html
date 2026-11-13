@@ -24,8 +24,9 @@
   .seg { display:flex; gap:4px; }
   .seg button { border:1px solid var(--line); background:transparent; color:var(--muted); padding:3px 10px; border-radius:6px; font:inherit; font-size:12px; cursor:pointer; }
   .seg button.on { background:var(--acc); border-color:var(--acc); color:#fff; }
-  .ytabs { display:flex; justify-content:flex-end; align-items:center; gap:18px; border-top:1px solid var(--line); border-bottom:1px solid var(--line); margin:4px -10px 0; padding:0 14px; }
-  .ytabs .lbl { color:var(--muted); font-size:12px; margin-right:auto; }
+  .ytabs { display:flex; justify-content:flex-end; align-items:center; gap:18px; flex-wrap:wrap; border-top:1px solid var(--line); border-bottom:1px solid var(--line); margin:8px -10px 0; padding:0 14px; }
+  .ytabs .grp { display:flex; gap:18px; align-items:center; }
+  .ytabs .sep { width:1px; height:18px; background:var(--line); }
   .ytabs button { border:0; background:none; color:var(--muted); padding:8px 0; cursor:pointer; font:inherit; font-size:13px; display:inline-flex; align-items:center; gap:6px; }
   .ytabs button i.dot { width:9px; height:9px; border-radius:50%; display:inline-block; background:#3b4552; }
   .ytabs button.on { color:var(--fg); box-shadow:inset 0 -2px 0 var(--acc); }
@@ -39,12 +40,14 @@
   <section class="box">
     <div class="chead">
       <h2><span class="home"><i class="ti ti-home"></i></span>Porównanie temperatur</h2>
-      <div class="ctrls">
-        <div class="seg" id="kind"><button data-k="temp" class="on">Normalna</button><button data-k="feels">Odczuwalna</button></div>
-        <div class="seg" id="cur"><button data-m="zoom">Zoom</button><button data-m="select">Select</button><button data-m="pan" class="on">Pan</button><button data-m="none">None</button></div>
-      </div>
     </div>
-    <div class="ytabs" id="years"><span class="lbl">Lata do porównania (maks. 3):</span></div>
+    <div class="ytabs">
+      <div class="grp" id="kind"><button data-k="temp" class="on">Normalna</button><button data-k="feels">Odczuwalna</button></div>
+      <span class="sep"></span>
+      <div class="grp" id="cur"><button data-m="zoom">Zoom</button><button data-m="select">Select</button><button data-m="pan" class="on">Pan</button><button data-m="none">None</button></div>
+      <span class="sep"></span>
+      <div class="grp" id="years" title="Lata do porównania (maks. 3)"></div>
+    </div>
     <div class="sel" id="info"></div>
     <div id="chartdiv"></div>
   </section>
