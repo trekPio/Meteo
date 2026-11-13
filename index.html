@@ -505,7 +505,7 @@ function roseData(rows) {
   return { data, n };
 }
 
-let roseRange = 7, roseRoot = null;
+let roseRange = 365, roseRoot = null;   // domyślnie cały rok
 const ROSE_RANGES = [[1, "24 h"], [7, "7 dni"], [30, "30 dni"], [365, "Rok"]];
 
 async function loadWindRose() {
