@@ -1255,7 +1255,7 @@ function nearTable(L) {
 }
 
 function nearMap(L) {
-  const me = NEAR.me, all = [me, ...NEAR.list], k = Math.cos(me.lat * Math.PI / 180), W = 900, H = 440, pad = 40;
+  const me = NEAR.me, all = [me, ...NEAR.list], k = Math.cos(me.lat * Math.PI / 180), W = 900, H = 460, pad = 50;
   const lats = all.map(s => s.lat), lons = all.map(s => s.lon);
   const y1 = Math.max(...lats), y0 = Math.min(...lats), x0 = Math.min(...lons), x1 = Math.max(...lons);
   const sc = Math.min((W - 2 * pad) / ((x1 - x0) * k), (H - 2 * pad - 30) / (y1 - y0));
@@ -1268,14 +1268,14 @@ function nearMap(L) {
   const [cx, cy] = P(me), km = sc / 111;
   let g = `<svg class="nmap" viewBox="0 0 ${W} ${H}"><clipPath id="nearClip"><rect width="${W}" height="${H}" rx="8"/></clipPath><g clip-path="url(#nearClip)">`;
   [5, 10, 15, 20, 25, 30].forEach(r => { const R = r * km;
-    g += `<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="#2a323c" stroke-dasharray="4 5"/><text x="${cx + R * .71 + 4}" y="${cy + R * .71 + 14}" fill="#4c5869" font-size="13">${r} km</text>`; });
+    g += `<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="#2a323c" stroke-dasharray="4 5"/><text x="${cx + R * .71 + 4}" y="${cy + R * .71 + 14}" fill="#4c5869" font-size="15">${r} km</text>`; });
   const dot = (s, x, y) => { const d = s.temp - me.temp, f = nearFull(s);
     return `<g><title>${s.city || ""}${s.street ? ", " + s.street : ""} · ${fmt(s.km)} km\n${fmt(tConv(s.temp))} ${tLabel()}${s.hum != null ? " · " + Math.round(s.hum) + " %" : ""}${s.wind != null ? " · wiatr " + nearWind(s.wind) + " " + wLabel() : ""}${s.rain_1h != null ? " · deszcz " + fmt(s.rain_1h) + " mm" : ""}</title>
       <circle cx="${x}" cy="${y}" r="${f ? 10 : 8}" fill="${f ? "#5aa2f0" : "#3b4552"}" stroke="#12161b" stroke-width="2"/>
-      <text x="${x}" y="${y - 15}" text-anchor="middle" fill="${nearDc(d)}" font-size="15">${fmt(tConv(s.temp))}${tempUnit === "K" ? " K" : "°"}</text></g>`; };
+      <text x="${x}" y="${y - 16}" text-anchor="middle" fill="${nearDc(d)}" font-size="18">${fmt(tConv(s.temp))}${tempUnit === "K" ? " K" : "°"}</text></g>`; };
   groups.forEach(G => {
     const n = G.m.length, lab = G.m[0].city || "";
-    if (n === 1) { g += dot(G.m[0], G.x, G.y) + `<text x="${G.x}" y="${G.y + 26}" text-anchor="middle" fill="#8c98a6" font-size="13">${lab}</text>`; return; }
+    if (n === 1) { g += dot(G.m[0], G.x, G.y) + `<text x="${G.x}" y="${G.y + 30}" text-anchor="middle" fill="#8c98a6" font-size="16">${lab}</text>`; return; }
     const avg = G.m.reduce((a, s) => a + s.temp, 0) / n, d = avg - me.temp, f = G.m.some(nearFull);
     const city = Object.entries(G.m.reduce((a, s) => (a[s.city] = (a[s.city] || 0) + 1, a), {})).sort((a, b) => b[1] - a[1])[0][0];
     const tip = G.m.map(s => `${s.city || ""}${s.street ? ", " + s.street : ""}: ${fmt(tConv(s.temp))} ${tLabel()}${s.wind != null ? " · wiatr " + nearWind(s.wind) + " " + wLabel() : ""}${s.rain_1h != null ? " · deszcz " + fmt(s.rain_1h) + " mm" : ""}`).join("\n");
@@ -1283,12 +1283,12 @@ function nearMap(L) {
       <circle cx="${G.x}" cy="${G.y}" r="15" fill="${f ? "#5aa2f0" : "#3b4552"}" stroke="#12161b" stroke-width="2"/>
       <circle cx="${G.x}" cy="${G.y}" r="19" fill="none" stroke="${f ? "#5aa2f0" : "#3b4552"}" stroke-opacity=".45" stroke-width="2"/>
       <text x="${G.x}" y="${G.y + 5}" text-anchor="middle" fill="#fff" font-size="14" font-weight="600">${n}</text>
-      <text x="${G.x}" y="${G.y - 25}" text-anchor="middle" fill="${nearDc(d)}" font-size="15">śr. ${fmt(tConv(avg))}${tempUnit === "K" ? " K" : "°"}</text>
-      <text x="${G.x}" y="${G.y + 36}" text-anchor="middle" fill="#8c98a6" font-size="13">${city} (${n})</text></g>`;
+      <text x="${G.x - 26}" y="${G.y + 6}" text-anchor="end" fill="${nearDc(d)}" font-size="18">śr. ${fmt(tConv(avg))}${tempUnit === "K" ? " K" : "°"}</text>
+      <text x="${G.x}" y="${G.y + 40}" text-anchor="middle" fill="#8c98a6" font-size="16">${city} (${n})</text></g>`;
   });
   g += `<g><circle cx="${cx}" cy="${cy}" r="11" fill="#a3be8c" stroke="#12161b" stroke-width="2"/>
-    <text x="${cx}" y="${cy - 17}" text-anchor="middle" fill="#fff" font-size="16">${fmt(tConv(me.temp))}${tempUnit === "K" ? " K" : "°"}</text>
-    <text x="${cx}" y="${cy + 28}" text-anchor="middle" fill="#cfd6de" font-size="13">Moja stacja</text></g></g></svg>`;
+    <text x="${cx}" y="${cy - 19}" text-anchor="middle" fill="#fff" font-size="20">${fmt(tConv(me.temp))}${tempUnit === "K" ? " K" : "°"}</text>
+    <text x="${cx}" y="${cy + 32}" text-anchor="middle" fill="#cfd6de" font-size="16">Moja stacja</text></g></g></svg>`;
   return g + `<div class="rlg"><span><i style="background:#a3be8c"></i>Moja stacja</span><span><i style="background:#5aa2f0"></i>Netatmo z wiatrem i opadem</span><span><i style="background:#3b4552"></i>Netatmo podstawowa</span><span>najedź na punkt, aby zobaczyć szczegóły</span></div>`;
 }
 
