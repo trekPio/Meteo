@@ -1289,8 +1289,10 @@ function nearMap(L) {
   order.forEach(([G, gi]) => {
     const n = G.m.length, lab = G.m[0].city || "";
     if (n === 1) {   // podpis pod punktem, a gdy obok jest inny znacznik – z prawej strony
-      const crowd = groups.some(o => o !== G && Math.hypot(o.x - G.x, o.y - G.y) < (o.same ? 90 : 60)) || Math.hypot(cx - G.x, cy - G.y) < 60;
-      g += dot(G.m[0], G.x, G.y) + (crowd
+      const nb = groups.filter(o => o !== G && Math.hypot(o.x - G.x, o.y - G.y) < (o.same ? 90 : 60));
+      const crowd = nb.length > 0 || Math.hypot(cx - G.x, cy - G.y) < 60;
+      const dup = nb.some(o => o.m[0].city === lab && (o.x < G.x || o.same));   // ta sama miejscowość tuż obok – podpis raz
+      g += dot(G.m[0], G.x, G.y) + (dup ? "" : crowd
         ? `<text x="${G.x + 16}" y="${G.y + 6}" fill="#8c98a6" font-size="16">${lab}</text>`
         : `<text x="${G.x}" y="${G.y + 30}" text-anchor="middle" fill="#8c98a6" font-size="16">${lab}</text>`);
       return;
