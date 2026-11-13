@@ -1226,7 +1226,7 @@ function buildSunChart(box, c, rows) {
     r.get("axisFill").setAll({ visible: true, fill: am5.color(col), fillOpacity: .07 }); r.get("grid").set("forceHidden", true); lo = lim; }
 
   const first = rows[0]?.t * 1000, last = rows[rows.length - 1]?.t * 1000, clear = [];
-  for (let t = Math.floor(first / 6e5) * 6e5; t <= last + 36e5 * 6; t += 6e5) clear.push({ t, v: Math.round(clearSky(t)) });
+  for (let t = Math.floor(first / 6e5) * 6e5; t <= last; t += 6e5) clear.push({ t, v: Math.round(clearSky(t)) });
   const cs = chart.series.push(am5xy.LineSeries.new(root, {
     name: "Bezchmurne niebo (teoretycznie)", xAxis, yAxis: ySun, valueXField: "t", valueYField: "v", valueYGrouped: "average", stroke: am5.color(0x8c98a6),
     tooltip: am5.Tooltip.new(root, { labelText: "Bezchmurnie: {valueY.formatNumber('#')} W/m²" }),
@@ -1268,7 +1268,7 @@ function buildSunYear(el, rows, mk) {
 
   const root = mk(el.querySelector(".c"));
   const chart = root.container.children.push(am5xy.XYChart.new(root, { panX: false, panY: false, paddingLeft: 0, layout: root.verticalLayout }));
-  const xr = am5xy.AxisRendererX.new(root, { minGridDistance: 60 }); xr.grid.template.set("forceHidden", true);
+  const xr = am5xy.AxisRendererX.new(root, { minGridDistance: 1 }); xr.grid.template.set("forceHidden", true); xr.labels.template.setAll({ fontSize: 12, centerX: 0 });
   xr.labels.template.adapters.add("text", (t, target) => { const d = target.dataItem?.get("category"); return d && d.endsWith("-01") ? new Date(d).toLocaleDateString("pl-PL", { month: "short" }) : ""; });
   const xAxis = chart.xAxes.push(am5xy.CategoryAxis.new(root, { categoryField: "day", renderer: xr }));
   const yr = am5xy.AxisRendererY.new(root, { inversed: true, minGridDistance: 18 }); yr.grid.template.set("forceHidden", true);
@@ -1290,6 +1290,8 @@ function buildSunYear(el, rows, mk) {
   const yU = c2.yAxes.push(am5xy.ValueAxis.new(r2, { min: 0, renderer: am5xy.AxisRendererY.new(r2, { opposite: true }) }));
   yU.get("renderer").grid.template.set("forceHidden", true);
   [x2, yE].forEach(a => a.get("renderer").grid.template.setAll({ strokeDasharray: [5, 5] }));
+  yE.children.unshift(am5.Label.new(r2, { text: "kWh/m²", rotation: -90, y: am5.p50, centerX: am5.p50, fill: am5.color(0xf6bd16), fontSize: 11 }));
+  yU.children.push(am5.Label.new(r2, { text: "UV", rotation: -90, y: am5.p50, centerX: am5.p50, fill: am5.color(0xd8dee9), fontSize: 11 }));
   const eS = c2.series.push(am5xy.ColumnSeries.new(r2, { name: "Energia dnia (kWh/m²)", xAxis: x2, yAxis: yE, valueXField: "t", valueYField: "e", fill: am5.color(0xf6bd16), stroke: am5.color(0xf6bd16),
     tooltip: am5.Tooltip.new(r2, { labelText: "Energia: [bold]{valueY.formatNumber('#.00')} kWh/m²[/]" }) }));
   eS.columns.template.setAll({ width: am5.percent(80), strokeOpacity: 0, fillOpacity: .75 });
