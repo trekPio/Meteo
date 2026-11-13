@@ -517,7 +517,7 @@ function buildWindRose(rows) {
   const box = document.getElementById("rose"); box.innerHTML = "";
   const { data, n } = roseData(rows);
   const el = document.createElement("section"); el.className = "box chart";
-  el.innerHTML = `<div class="chead"><h2><button class="home" title="Do góry strony" aria-label="Do góry strony"><i class="ti ti-home"></i></button>Róża wiatrów (% czasu, ${n} pomiarów)</h2><div class="seg">${
+  el.innerHTML = `<div class="chead"><h2><button class="home" title="Do góry strony" aria-label="Do góry strony"><i class="ti ti-home"></i></button>Roczny rozkład wiatrów</h2><div class="seg">${
     ROSE_RANGES.map(([d, l]) => `<button data-d="${d}" class="${d === roseRange ? "on" : ""}">${l}</button>`).join("")}</div></div>
     <div class="c" style="height:540px"></div>`;
   box.appendChild(el);
