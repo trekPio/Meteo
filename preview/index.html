@@ -54,6 +54,16 @@
   .ytabs .seg button:hover { color:var(--fg); }
   .ytabs .seg button.on { background:none; color:var(--fg); box-shadow:inset 0 -2px 0 var(--acc); }
   .ytabs.split { justify-content:space-between; }
+  .cmw { position:relative; display:flex; align-items:center; }
+  .cmg { border:0; background:none; color:var(--muted); padding:6px 2px; cursor:pointer; font-size:18px; line-height:1; display:flex; }
+  .cmg:hover, .cmg.open { color:var(--fg); }
+  .cmg i { transition:transform .25s; } .cmg.open i { transform:rotate(60deg); }
+  .cmenu { position:absolute; top:calc(100% + 2px); left:-8px; z-index:5; background:#222a33; border:1px solid #3b4552; border-radius:10px; padding:4px; display:flex; flex-direction:column; gap:2px; min-width:130px; box-shadow:0 6px 16px rgba(0,0,0,.35); }
+  .cmenu[hidden] { display:none; }
+  .ytabs .cmenu button { display:flex; align-items:center; gap:8px; padding:6px 10px; border-radius:6px; color:var(--fg); box-shadow:none; text-align:left; }
+  .ytabs .cmenu button i { font-size:16px; color:var(--muted); }
+  .ytabs .cmenu button:hover { background:#2a323c; }
+  .ytabs .cmenu button.on { background:var(--acc); color:#fff; box-shadow:none; } .ytabs .cmenu button.on i { color:#fff; }
   .ytabs .sep { width:1px; height:18px; background:var(--line); }
   .ytabs .ydot { width:9px; height:9px; border-radius:50%; display:inline-block; margin-right:6px; vertical-align:0; }
   .ytabs + .sel { margin-top:6px; }
@@ -630,12 +640,16 @@ function setupCursorModes(el, chart, cursor, getX, rows, key) {
     cursorMode = m;
     cursor.set("behavior", { zoom: "zoomX", select: "selectX", pan: "none", none: "none" }[m]);
     chart.set("panX", m === "pan");
-    el.querySelectorAll(".seg button[data-m]").forEach(b => b.classList.toggle("on", b.dataset.m === m));
+    el.querySelectorAll("button[data-m]").forEach(b => b.classList.toggle("on", b.dataset.m === m));
     sel.textContent = { zoom: "Przeciągnij po wykresie, aby przybliżyć wybrany fragment.",
       select: "Zaznacz fragment, aby zobaczyć statystyki temperatury.",
       pan: "Przeciągnij wykres, aby go przesunąć; kółko myszy przybliża.", none: "" }[m];
   };
-  el.querySelectorAll(".seg button[data-m]").forEach(b => b.onclick = () => apply(b.dataset.m));
+  const menu = el.querySelector(".cmenu"), gear = el.querySelector(".cmg");
+  const close = () => { menu.hidden = true; gear.classList.remove("open"); };
+  gear.onclick = (ev) => { ev.stopPropagation(); menu.hidden = !menu.hidden; gear.classList.toggle("open", !menu.hidden);
+    if (!menu.hidden) document.addEventListener("click", close, { once: true }); };
+  el.querySelectorAll("button[data-m]").forEach(b => b.onclick = (ev) => { ev.stopPropagation(); apply(b.dataset.m); close(); });
   cursor.events.on("selectended", () => {
     if (cursorMode !== "select") return;
     const x = getX(), toT = (p) => x.positionToDate(x.toAxisPosition(p)).getTime() / 1000;
@@ -1007,6 +1021,7 @@ async function tyUpdate(month = 12) {
 // ---------- Wykresy ----------
 let range = 1, chartRoots = [], seriesList = [];   // seriesList: {series, key}
 
+const CM_ICON = { zoom: "ti-zoom-in", select: "ti-marquee-2", pan: "ti-hand-move", none: "ti-pointer" };
 const CH_RANGES = [[1, "24 h"], [3, "3 dni"], [7, "7 dni"], [30, "30 dni"], [365, "Rok"]];
 const chRange = {};   // zakres wybrany na pasku danego wykresu (klucz = tytuł)
 
@@ -1054,8 +1069,8 @@ function buildChartBody(box, c, rows) {
 
     const el = document.createElement("section"); el.className = "box chart"; el.id = "ch-" + c.s[0][0];
     el.innerHTML = c.nord
-      ? `<h2><button class="home" title="Do góry strony" aria-label="Do góry strony"><i class="ti ti-home"></i></button>${c.t}</h2><div class="ytabs"><div class="seg cm">${CURSOR_MODES.map(([m, l]) =>
-          `<button data-m="${m}" class="${m === cursorMode ? "on" : ""}">${l}</button>`).join("")}</div></div><div class="sel"></div><div class="c"></div>`
+      ? `<h2><button class="home" title="Do góry strony" aria-label="Do góry strony"><i class="ti ti-home"></i></button>${c.t}</h2><div class="ytabs"><div class="cmw"><button class="cmg" title="Tryb kursora" aria-label="Tryb kursora"><i class="ti ti-settings"></i></button><div class="cmenu" hidden>${CURSOR_MODES.map(([m, l]) =>
+          `<button data-m="${m}" class="${m === cursorMode ? "on" : ""}"><i class="ti ${CM_ICON[m]}"></i>${l}</button>`).join("")}</div></div></div><div class="sel"></div><div class="c"></div>`
       : `<h2><button class="home" title="Do góry strony" aria-label="Do góry strony"><i class="ti ti-home"></i></button>${c.wind ? `${c.t} (${wLabel()})` : c.t}</h2><div class="c"></div>`;
     box.appendChild(el);
     let root;
