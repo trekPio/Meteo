@@ -11,6 +11,8 @@ import math
 import os
 import subprocess
 import sys
+import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime
@@ -25,17 +27,28 @@ BOX = {"lat_ne": 52.72, "lon_ne": 19.20, "lat_sw": 52.45, "lon_sw": 18.90}
 API = "https://api.netatmo.com"
 
 
+def call(req, tries=4):
+    """Zapytanie z ponawianiem przy chwilowych błędach Netatmo (5xx, przerwane połączenie)."""
+    for i in range(tries):
+        try:
+            with urllib.request.urlopen(req, timeout=30) as r:
+                return json.load(r)
+        except urllib.error.HTTPError as e:
+            if e.code < 500 or i == tries - 1:
+                raise
+        except urllib.error.URLError:
+            if i == tries - 1:
+                raise
+        time.sleep(5 * (i + 1))
+
+
 def post(url, data):
-    req = urllib.request.Request(url, data=urllib.parse.urlencode(data).encode(), method="POST")
-    with urllib.request.urlopen(req, timeout=30) as r:
-        return json.load(r)
+    return call(urllib.request.Request(url, data=urllib.parse.urlencode(data).encode(), method="POST"))
 
 
 def get(url, token, params):
-    req = urllib.request.Request(f"{url}?{urllib.parse.urlencode(params)}",
-                                 headers={"Authorization": f"Bearer {token}"})
-    with urllib.request.urlopen(req, timeout=30) as r:
-        return json.load(r)
+    return call(urllib.request.Request(f"{url}?{urllib.parse.urlencode(params)}",
+                                       headers={"Authorization": f"Bearer {token}"}))
 
 
 def refresh_token():
