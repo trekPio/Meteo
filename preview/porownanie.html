@@ -100,7 +100,7 @@ async function draw() {
   for (const [i, y] of selYears.entries()) {
     const d = (await dailyMeans(y))[kind], col = am5.color(YCOL[years.indexOf(y) % YCOL.length]);
     const xr = am5xy.AxisRendererX.new(root, { minGridDistance: 70, opposite: i === 1 });
-    xr.labels.template.setAll({ fill: col, forceHidden: i > 1 });
+    xr.labels.template.setAll({ fill: col, forceHidden: i > 1, minPosition: 0.02, maxPosition: 0.97 });
     xr.grid.template.setAll({ forceHidden: i > 0, strokeDasharray: [5, 5] });
     const xAxis = chart.xAxes.push(am5xy.DateAxis.new(root, {
       baseInterval: { timeUnit: "day", count: 1 }, maxDeviation: 0, renderer: xr,
