@@ -1,7 +1,7 @@
 {
- "t": 1794671662,
+ "t": 1794671722,
  "src": "auto",
- "fetched": 1794671717,
+ "fetched": 1794671730,
  "values": {
   "outdoor.temperature": 4.2,
   "outdoor.feels_like": 4.2,
@@ -26,8 +26,8 @@
   "rainfall_piezo.monthly": 11.8,
   "rainfall_piezo.yearly": 886.5,
   "wind.wind_speed": 1.1,
-  "wind.wind_gust": 1.6,
-  "wind.wind_direction": 43.0,
+  "wind.wind_gust": 2.5,
+  "wind.wind_direction": 4.0,
   "wind.10_minute_average_wind_direction": 40.0,
   "pressure.relative": 1010.5,
   "pressure.absolute": 1010.5,
