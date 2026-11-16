@@ -1778,7 +1778,7 @@ window.DIAL = (() => {
       this.canvas = document.createElement("canvas"); host.appendChild(this.canvas);
       this.ctx = this.canvas.getContext("2d");
       this.data = {}; this.alpha = 0; this.mode = "off";
-      this.dir = null; this.dirT = 0; this.dirVel = 0; this.hl = null; this.hlUntil = 0;
+      this.dir = null; this.dirT = 0; this.dirVel = 0; this.d10 = null; this.d10T = 0; this.d10Vel = 0; this.hl = null; this.hlUntil = 0;
       this.layout(true);
       new ResizeObserver(() => this.resize()).observe(host);
       this.raf = 0; this.last = 0; this.onFrame = null;
@@ -1817,6 +1817,9 @@ window.DIAL = (() => {
       }
       const d = all.wind.dir;
       if (d != null) { if (this.dir == null) this.dir = this.dirT = d; else this.dirT += ((d - this.dirT) % 360 + 540) % 360 - 180; }
+      const d10 = all.wind.dir10;   // kierunek sprzed 10 min
+      if (d10 != null) { if (this.d10 == null) this.d10 = this.d10T = d10; else this.d10T += ((d10 - this.d10T) % 360 + 540) % 360 - 180; }
+      else this.d10 = null;
       this.wake();
     }
     rev(c, tf, now) {   // postęp wjazdu (in) / zjazdu (out) kreski w miejscu tf sektora
@@ -1891,6 +1894,7 @@ window.DIAL = (() => {
           st.f = path(ti, st.tf); st.ringA = clamp(ti / 0.25, 0, 1); st.shown = CFG[k].fromF(st.f);
         });
         if (this.dir != null) { this.dirShown = this.dirT - 360 * (1 - easeInOut(clamp(t / 2, 0, 1))); this.dir = this.dirT; }
+        if (this.d10 != null) { this.d10Shown = this.d10T - 360 * (1 - easeInOut(clamp((t - 0.25) / 2, 0, 1))); this.d10 = this.d10T; }
         for (const k of ORDER) for (const j in CFG[k].marks) CFG[k].marks[j].f = CFG[k].marks[j].tf;
         if (t >= 2.9) { this.mode = "run"; for (const k of ORDER) { CFG[k].st.vel = 0; CFG[k].st.shown = this.data[k].value; } }
         return true;
@@ -1908,6 +1912,11 @@ window.DIAL = (() => {
         if (Math.abs(this.dirT - this.dir) > 0.05 || Math.abs(this.dirVel) > 0.05) busy = true; else { this.dir = this.dirT; this.dirVel = 0; }
         this.dirShown = this.dir;
       }
+      if (this.d10 != null) {   // pasek „10 min temu” jedzie po pierścieniu nieco wolniej niż znacznik
+        for (let t = 0; t < dt; t += H) { const a = K * 0.35 * (this.d10T - this.d10) - C * 0.65 * this.d10Vel; this.d10Vel += a * H; this.d10 += this.d10Vel * H; }
+        if (Math.abs(this.d10T - this.d10) > 0.05 || Math.abs(this.d10Vel) > 0.05) busy = true; else { this.d10 = this.d10T; this.d10Vel = 0; }
+        this.d10Shown = this.d10;
+      } else this.d10Shown = null;
       if (this.alpha < 1) { this.alpha = Math.min(1, this.alpha + dt * 3); busy = true; }
       if (now < this.hlUntil) busy = true;
       return busy;
@@ -2048,6 +2057,16 @@ window.DIAL = (() => {
           ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.lineTo(p[0] - Math.cos(a) * l, p[1] - Math.sin(a) * l); ctx.stroke();
         }
         const a = this.dirShown * Math.PI / 180 - Math.PI / 2, base = P(rc, a, s * 0.004);
+        if (this.d10Shown != null) {   // z tyłu za znacznikiem: pasek = skąd wiało 10 min temu
+          const rr = rc + s * 0.017, a10 = this.d10Shown * Math.PI / 180 - Math.PI / 2, hw = 0.2;
+          ctx.beginPath(); ctx.arc(cx, cy, rr, 0, Math.PI * 2); ctx.lineWidth = s * 0.006; ctx.strokeStyle = "rgba(236,239,244,.06)"; ctx.stroke();
+          let da = ((a - a10) % (2 * Math.PI) + 3 * Math.PI) % (2 * Math.PI) - Math.PI;   // najkrótsza droga do obecnego kierunku
+          if (Math.abs(da) > 0.02) {   // smuga zmiany kierunku: od paska do znacznika
+            ctx.beginPath(); ctx.arc(cx, cy, rr, a10, a10 + da, da < 0); ctx.lineWidth = s * 0.005; ctx.strokeStyle = "rgba(136,192,208,.6)"; ctx.stroke();
+          }
+          ctx.beginPath(); ctx.arc(cx, cy, rr, a10 - hw, a10 + hw); ctx.lineCap = "round"; ctx.lineWidth = s * 0.008;
+          ctx.strokeStyle = "rgba(136,192,208,.9)"; ctx.shadowColor = "rgba(136,192,208,.8)"; ctx.shadowBlur = s * 0.02; ctx.stroke(); ctx.shadowBlur = 0; ctx.lineCap = "butt";
+        }
         tri([base[0] - Math.cos(a) * s * 0.04, base[1] - Math.sin(a) * s * 0.04], base, s * 0.016);
         ctx.fillStyle = "#eceff4"; ctx.shadowColor = "rgba(236,239,244,.8)"; ctx.shadowBlur = s * 0.02; ctx.fill(); ctx.shadowBlur = 0;
       }
@@ -2060,6 +2079,10 @@ window.DIAL = (() => {
         ctx.fillStyle = "#eceff4"; ctx.shadowColor = "rgba(236,239,244,.25)"; ctx.shadowBlur = s * 0.02; ctx.fillText(tv, cx, cy + s * 0.01); ctx.shadowBlur = 0;
         ctx.fillStyle = "#8a93a6"; ctx.font = `600 ${s * 0.036}px ${FONT}`; ctx.fillText(c.unit, cx, cy + s * 0.075);
         if (dd.top) { ctx.fillStyle = dd.top.color || "#a3abbb"; ctx.font = `600 ${s * 0.033}px ${FONT}`; ctx.fillText(dd.top.text, cx, cy - s * 0.07); }
+        if (k === "wind" && dd.dir10 != null) {   // podpis paska: kierunek sprzed 10 min
+          ctx.fillStyle = "rgba(136,192,208,.95)"; ctx.font = `600 ${s * 0.027}px ${FONT}`;
+          ctx.fillText(`10 min temu: ${DIRS[Math.round(dd.dir10 / 22.5) % 16]} ${Math.round(dd.dir10)}°`, cx, cy + s * 0.108);
+        }
         ctx.fillStyle = "#8a93a6"; ctx.font = `600 ${s * 0.038}px ${FONT}`;
         if ("letterSpacing" in ctx) ctx.letterSpacing = `${s * 0.007}px`;
         ctx.fillText(c.label.toUpperCase(), cx, cy + R * 0.86);
@@ -2084,7 +2107,7 @@ window.DIAL = (() => {
     </div>
     <div class="dz-stage" id="dzStage"><div class="dz-float"><div class="dz-tilt" id="dzTilt"><div class="dz-g" id="dzG"></div></div></div></div>
     <div class="dz-legend" id="dzLegend"></div>
-    <div class="dz-foot">Sektory: każdy ma własną skalę (początek sektora = minimum, koniec = maksimum); trójkąty na obwodzie = min / maks dnia (wiatr: porywy i maks. dnia, słońce: nasłonecznienie przy bezchmurnym niebie). Pierścienie w środku: drugi zestaw, od zewnątrz w kolejności kafelków – długość łuku = położenie wartości w zakresie. Kliknij sektor lub kafelek, żeby pokazać wielkość w środku; „Cykl” – co 5 s następna.</div>
+    <div class="dz-foot">Sektory: każdy ma własną skalę (początek sektora = minimum, koniec = maksimum); trójkąty na obwodzie = min / maks dnia (wiatr: porywy i maks. dnia, słońce: nasłonecznienie przy bezchmurnym niebie). Kierunek wiatru w środku: biały trójkąt = skąd wieje teraz, niebieski pasek na pierścieniu = skąd wiało 10 min temu. Pierścienie w środku: drugi zestaw, od zewnątrz w kolejności kafelków – długość łuku = położenie wartości w zakresie. Kliknij sektor lub kafelek, żeby pokazać wielkość w środku; „Cykl” – co 5 s następna.</div>
   </section>`;
   const G = new SectorGauge(document.getElementById("dzG"));
   let ready = false, wantBoot = false, last = null;
@@ -2147,6 +2170,7 @@ window.DIAL = (() => {
     const T = val("temp"), Tx = ext("temp"), T1 = ago("temp", 3000), tr = T != null && T1 != null ? T - T1 : null;
     const Hm = val("hum"), Hx = ext("hum"), Pr = val("press"), Px = ext("press"), P3 = ago("press", 3 * 3600), pt = Pr != null && P3 != null ? Pr - P3 : null;
     const Wd = val("wind"), Gu = val("gust"), Dr = val("dir");
+    const D10 = ago("dir", 600) ?? v["wind.10_minute_average_wind_direction"] ?? null;
     const wv = (ms) => ms == null ? "–" : nf(CFG.wind.disp(ms * 3.6), 1);
     const rr = val("rainRate"), rd = val("rainDay");
     let rmx = rr ?? 0; for (const r of rows) { const x = pick(r, "rainRate"); if (x != null && x > rmx) rmx = x; }
@@ -2164,7 +2188,7 @@ window.DIAL = (() => {
       pres: { value: Pr ?? CFG.pres.min, na: Pr == null,
         top: pt == null ? null : { text: `${Math.abs(pt) < 0.5 ? "●" : pt > 0 ? "▲" : "▼"} ${pt > 0 ? "+" : ""}${nf(pt, 1)} / 3 h`, color: "#a3be8c" },
         sub: Px.mn ? `↓ ${nf(Px.mn.x, 1)}  ${hm(Px.mn.t)}    ↑ ${nf(Px.mx.x, 1)}  ${hm(Px.mx.t)}` : "", marks: mk(Px, "#b48ead", "#ebcb8b") },
-      wind: { value: Wd == null ? 0 : Wd * 3.6, na: Wd == null, dir: Dr,
+      wind: { value: Wd == null ? 0 : Wd * 3.6, na: Wd == null, dir: Dr, dir10: D10,
         top: Dr == null ? null : { text: `${DIRS[Math.round(Dr / 22.5) % 16]} ${Math.round(Dr)}°`, color: "#d8dee9" },
         sub: `porywy ${wv(Gu)}  ·  maks dnia ${wv(mx)}`,
         marks: Object.assign({}, Gu != null ? { gust: { v: Gu * 3.6, color: "#d08770" } } : {}, mx != null ? { max: { v: mx * 3.6, color: "#bf616a" } } : {}) },
