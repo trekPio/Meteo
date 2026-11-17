@@ -626,7 +626,7 @@ function updateWindTile(v, t, ext = {}) {
   } else trail.setAttribute("d", "");
   const [x1, y1] = polar(d10 - 12, 66), [x2, y2] = polar(d10 + 12, 66);
   arc.setAttribute("d", `M${x1.toFixed(1)} ${y1.toFixed(1)} A66 66 0 0 1 ${x2.toFixed(1)} ${y2.toFixed(1)}`);
-  lab.textContent = `10 min: ${DIRS[Math.round(d10 / 22.5) % 16]} ${Math.round(d10)}°` + (Math.abs(da) >= 1 ? ` (${da > 0 ? "+" : "−"}${Math.round(Math.abs(da))}°)` : "");
+  lab.textContent = `10 min: ${DIRS[Math.round(d10 / 22.5) % 16]} ${Math.round(d10)}°`;   // o ile skręcił – w dymku
   lab.title = Math.abs(da) < 1 ? "Kierunek sprzed 10 minut – bez zmiany" : `Kierunek sprzed 10 minut; od tego czasu wiatr skręcił o ${Math.round(Math.abs(da))}° ${da > 0 ? "zgodnie z ruchem wskazówek zegara" : "przeciwnie do ruchu wskazówek zegara"} (cienki łuk)`;
 }
 
@@ -2342,6 +2342,6 @@ buildGauges();
 loadLatest().catch(err);
 setInterval(refresh, 5 * 60 * 1000);
 </script>
-<div class="prevtag">Podgląd – kafelki Teraz (v5)</div>
+<div class="prevtag">Podgląd – kafelki Teraz (v5.1)</div>
 </body>
 </html>
