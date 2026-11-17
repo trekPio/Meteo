@@ -537,8 +537,9 @@ function updateGauges(v, rows = []) {
     let mn = null, mx = null;
     for (const r of rows) { const x = pick(r, dk); if (x == null) continue;
       if (!mn || x < mn.x) mn = { x, t: r.t }; if (!mx || x > mx.x) mx = { x, t: r.t }; }
-    if (mn) { document.getElementById("min-" + key).textContent = f(cv(mn.x), dec); document.getElementById("tmin-" + key).textContent = hm(mn.t); }
-    if (mx) { document.getElementById("max-" + key).textContent = f(cv(mx.x), dec); document.getElementById("tmax-" + key).textContent = hm(mx.t); }
+    const dm = key === "press" && pressUnit === "mmhg" ? 0 : dec;   // mmHg: bez miejsc po przecinku (mieści się w wierszu)
+    if (mn) { document.getElementById("min-" + key).textContent = f(cv(mn.x), dm); document.getElementById("tmin-" + key).textContent = hm(mn.t); }
+    if (mx) { document.getElementById("max-" + key).textContent = f(cv(mx.x), dm); document.getElementById("tmax-" + key).textContent = hm(mx.t); }
   }
   for (const [key] of TILES) setTrend(key, rows, pick(v, DK(key)), DK(key));
   setTrend("wind", rows, pick(v, "wind"));
