@@ -2417,17 +2417,16 @@ function openRose() {
   // 3. opisy kierunków
   ov.querySelectorAll(".lb").forEach(t => A(t, [{ transform: "scale(.8)", opacity: 0 }, { transform: "scale(1)", opacity: 1 }], { delay: 1150 + +t.dataset.a / 360 * 500, duration: 300, easing: "ease-out" }));
   // 4. strzałka: rośnie (na N), potem obraca się do kierunku
-  const rot = d == null ? 0 : (d + 180) % 360, rotE = rot > 180 ? rot - 360 : rot;
+  const rot = d == null ? 0 : (d + 180) % 360;
   A($("#rArrow"), [{ transform: "rotate(0deg) scale(0)", opacity: 0 }, { transform: "rotate(0deg) scale(1.25)", opacity: 1, offset: .65 }, { transform: "rotate(0deg) scale(1)", opacity: 1 }], { delay: 1750, duration: 450, easing: "ease-out" }).onfinish = () =>
-    A($("#rArrow"), [{ transform: "rotate(0deg)" }, { transform: `rotate(${rotE}deg)` }], { duration: 900, easing: "cubic-bezier(.3,1.35,.5,1)" });
+    A($("#rArrow"), [{ transform: "rotate(0deg)" }, { transform: `rotate(${rot + 1080}deg)` }], { duration: 1700, easing: "cubic-bezier(.12,.75,.2,1.04)" });   // 3 pełne obroty z rozpędu, wyhamowanie z lekkim przerzutem
   // 5. łuk 10 min: pojawia się na N i jedzie po okręgu do kierunku sprzed 10 min, potem smuga skrętu
   if (d10 != null) {
-    const r10 = d10 > 180 ? d10 - 360 : d10;
-    A($("#rArcG"), [{ transform: "rotate(0deg)", opacity: 0 }, { transform: "rotate(0deg)", opacity: 1, offset: .15 }, { transform: `rotate(${r10}deg)`, opacity: 1 }], { delay: 3150, duration: 1000, easing: "cubic-bezier(.4,0,.2,1)" });
+    A($("#rArcG"), [{ transform: "rotate(0deg)", opacity: 0 }, { transform: "rotate(90deg)", opacity: 1, offset: .08 }, { transform: `rotate(${d10 + 720}deg)`, opacity: 1 }], { delay: 3200, duration: 1500, easing: "cubic-bezier(.2,.7,.2,1.05)" });   // 2 okrążenia po okręgu
     const tr = $("#rTrail");
-    if (tr) { const L = tr.getTotalLength(); A(tr, [{ strokeDasharray: `${L}`, strokeDashoffset: L }, { strokeDasharray: `${L}`, strokeDashoffset: 0 }], { delay: 4150, duration: 500, easing: "ease-out" }); }
+    if (tr) { const L = tr.getTotalLength(); A(tr, [{ strokeDasharray: `${L}`, strokeDashoffset: L }, { strokeDasharray: `${L}`, strokeDashoffset: 0 }], { delay: 4650, duration: 400, easing: "ease-out" }); }
   }
-  A($("#rCapt"), [{ opacity: 0, transform: "translateY(6px)" }, { opacity: 1, transform: "none" }], { delay: d10 != null ? 4500 : 3000, duration: 350 });
+  A($("#rCapt"), [{ opacity: 0, transform: "translateY(6px)" }, { opacity: 1, transform: "none" }], { delay: d10 != null ? 4900 : 3500, duration: 350 });
 }
 function closeRose() { if (!roseEl) return; roseEl.remove(); roseEl = null; if (!modalEl && !zoomEl) document.body.style.overflow = ""; }
 
@@ -2464,6 +2463,6 @@ buildGauges();
 loadLatest().catch(err);
 setInterval(refresh, 5 * 60 * 1000);
 </script>
-<div style="position:fixed;right:10px;bottom:10px;z-index:60;background:#bf616a;color:#fff;font-size:12px;padding:4px 10px;border-radius:6px">Podgląd – ikona wiatru + róża</div>
+<div style="position:fixed;right:10px;bottom:10px;z-index:60;background:#bf616a;color:#fff;font-size:12px;padding:4px 10px;border-radius:6px">Podgląd – ikona wiatru + róża (v2)</div>
 </body>
 </html>
