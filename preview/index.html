@@ -117,6 +117,12 @@
   .mm b { display:block; font-size:17px; font-weight:500; color:var(--fg); }
   .mm b.cmin { color:#88c0d0; } .mm b.cmax { color:#d08770; }
   .windtile { grid-column:span 2; }
+  .wcomp { cursor:zoom-in; }
+  .cmodal .mbox.rbox { width:auto; padding:22px 26px 18px; text-align:center; }
+  .rbig { display:block; width:min(520px, 84vw, 72vh); height:auto; margin:0 auto; }
+  .rbig .ctr { transform-box:view-box; transform-origin:200px 200px; }
+  .rcapt { margin-top:8px; font-size:14px; color:#cfd6de; }
+  .rcapt b { font-weight:600; color:var(--fg); } .rcapt .c10 { color:#88c0d0; } .rcapt .sep { color:#4c5869; margin:0 8px; }
   .windtile .wicon { position:absolute; top:32px; left:14px; width:44px; height:37px; pointer-events:none; }   /* ikona wiatru pod nagłówkiem */
   @media (max-width:520px) { .windtile { grid-column:auto; } }
   .wrow { display:flex; align-items:center; justify-content:space-around; gap:12px; }
@@ -410,10 +416,11 @@ function buildGauges() {
   box.querySelector(".vbox.tog").onclick = () => { tMode = (tMode + 1) % 3; saveUnits(); redrawTiles(); };
   for (const [key] of TILES) document.getElementById("sp-" + key).onclick = () => openChartModal(key);
   // podwójne kliknięcie w kafelek: powiększenie na ekran (jak okno); ponowne podwójne kliknięcie zamyka
+  box.querySelector(".windtile .wcomp").addEventListener("dblclick", (e) => { e.stopPropagation(); window.getSelection()?.removeAllRanges(); openRose(); });
   box.querySelectorAll(".gauge").forEach(t => {
     t.title = "Kliknij dwukrotnie: powiększ";
     t.addEventListener("dblclick", (e) => {
-      if (e.target.closest(".vbox.tog, .wunit, .spark, .tchart, .rls, button")) return;   // te miejsca mają własne kliknięcia
+      if (e.target.closest(".vbox.tog, .wunit, .spark, .tchart, .rls, .wcomp, button")) return;   // te miejsca mają własne kliknięcia
       window.getSelection()?.removeAllRanges();
       if (zoomEl) closeTileZoom(); else openTileZoom(t);
     });
@@ -594,7 +601,7 @@ function buildWindTile(box) {
   <svg class="wicon" viewBox="0 0 120 100" aria-hidden="true"><g fill="none" stroke="${FG}" stroke-width="6" stroke-linecap="round">
     <path d="M10 32 H66 a14 14 0 1 0 -14 -14"/><path d="M10 52 H92 a15 15 0 1 1 -15 15"/><path d="M22 72 H54 a10 10 0 1 1 -10 10"/></g></svg>
   <div class="wrow">
-    <svg viewBox="0 0 200 200" class="wcomp" role="img" aria-label="Kierunek wiatru">
+    <svg viewBox="0 0 200 200" class="wcomp" role="img" aria-label="Kierunek wiatru"><title>Kliknij dwukrotnie: powiększona róża wiatrów</title>
       <circle cx="100" cy="100" r="66" fill="none" stroke="#3b4552" stroke-width="3"/>
       <g stroke="#6b7785" stroke-width="1.5">${minor}</g>
       <g stroke="#cfd6de" stroke-width="3" stroke-linecap="round">
@@ -2364,6 +2371,66 @@ function closeTileZoom() {
   if (!modalEl) document.body.style.overflow = "";
 }
 
+// ---------- Powiększona róża wiatrów (dwuklik w okrąg na kafelku wiatru) ----------
+let roseEl = null;
+function openRose() {
+  if (roseEl || !lastTiles) return;
+  const [v, , ext = {}] = lastTiles.w, d = pick(v, "dir"), d10 = ext.d10;
+  const C = 200, R = 130, P = (a, r) => polarC(a, r, C, C), f1 = (x) => x.toFixed(1);
+  let ticks = "", labels = "";
+  for (let a = 0; a < 360; a += 5) {   // podziałka co 5°, mocniejsza co 22,5°
+    const k = a % 90 === 0 ? 3 : a % 45 === 0 ? 2 : a % 22.5 === 0 ? 1 : 0; if (a % 22.5 && a % 5) continue;
+    const [r1, r2, w, col] = [[R + 4, R + 10, 1, "#4c5869"], [R + 4, R + 16, 1.8, "#6b7785"], [R + 4, R + 20, 2.4, "#9aa5b1"], [R + 2, R + 26, 3.5, "#cfd6de"]][k];
+    const [x1, y1] = P(a, r1), [x2, y2] = P(a, r2);
+    ticks += `<line class="ctr tk" data-a="${a}" x1="${f1(x1)}" y1="${f1(y1)}" x2="${f1(x2)}" y2="${f1(y2)}" stroke="${col}" stroke-width="${w}" stroke-linecap="round"/>`;
+  }
+  for (let i = 0; i < 16; i++) {   // opisy: główne duże, pośrednie mniejsze i delikatniejsze
+    const a = i * 22.5, k = i % 4 === 0 ? 0 : i % 2 === 0 ? 1 : 2, [x, y] = P(a, [R + 46, R + 42, R + 40][k]);
+    const st = [`font-size="24" font-weight="600" fill="${a === 0 ? "#ebcb8b" : "#e7ecf1"}"`, `font-size="15" font-weight="500" fill="#b3bdc9"`, `font-size="11" fill="#7d8896"`][k];
+    labels += `<text class="ctr lb" data-a="${a}" x="${f1(x)}" y="${f1(y)}" text-anchor="middle" dominant-baseline="central" ${st}>${DIRS[i]}</text>`;
+  }
+  let arc10 = "", trail = "", da = 0;
+  if (d10 != null && d != null) {
+    const [ax1, ay1] = P(-11, R), [ax2, ay2] = P(11, R);   // łuk narysowany na N, obracany do kierunku sprzed 10 min
+    arc10 = `<g class="ctr" id="rArcG"><path d="M${f1(ax1)} ${f1(ay1)} A${R} ${R} 0 0 1 ${f1(ax2)} ${f1(ay2)}" fill="none" stroke="#88c0d0" stroke-width="9" stroke-linecap="round"/></g>`;
+    da = ((d - d10) % 360 + 540) % 360 - 180;
+    if (Math.abs(da) >= 1) { const [tx1, ty1] = P(d10, R), [tx2, ty2] = P(d10 + da, R);
+      trail = `<path id="rTrail" d="M${f1(tx1)} ${f1(ty1)} A${R} ${R} 0 0 ${da > 0 ? 1 : 0} ${f1(tx2)} ${f1(ty2)}" fill="none" stroke="#88c0d0" stroke-opacity=".6" stroke-width="4"/>`; }
+  }
+  const dn = (x) => `${DIRS[Math.round(x / 22.5) % 16]} ${Math.round(x)}°`;
+  const ov = document.createElement("div"); ov.className = "cmodal";
+  ov.innerHTML = `<div class="mbox rbox" role="dialog" aria-modal="true"><button class="mx" title="Zamknij (Esc)" aria-label="Zamknij"><i class="ti ti-x"></i></button>
+    <svg class="rbig" viewBox="0 0 400 400" aria-label="Róża wiatrów">
+      <g class="ctr" id="rRing"><circle cx="200" cy="200" r="${R}" fill="#1b2129" stroke="#3b4552" stroke-width="4"/><circle cx="200" cy="200" r="${R * 0.55}" fill="none" stroke="#2a323c" stroke-width="1.5" stroke-dasharray="3 5"/></g>
+      ${ticks}${labels}${trail}${arc10}
+      <g class="ctr" id="rArrow"><path d="M200 116 L252 268 L200 236 L148 268 Z" fill="none" stroke="#fff" stroke-width="6" stroke-linejoin="round"/></g>
+    </svg>
+    <div class="rcapt" id="rCapt">${d == null ? "Brak danych o kierunku" : `Teraz <b>${dn(d)}</b> · ${kmh(pick(v, "wind")) ?? "–"} ${wLabel()}` + (d10 != null ? `<span class="sep">|</span><span class="c10">10 min temu ${dn(d10)}${Math.abs(da) >= 1 ? ` · skręt ${da > 0 ? "+" : "−"}${Math.round(Math.abs(da))}°` : ""}</span>` : "")}</div></div>`;
+  document.body.appendChild(ov); document.body.style.overflow = "hidden"; roseEl = ov;
+  ov.addEventListener("click", (e) => { if (e.target === ov || e.target.closest(".mx")) closeRose(); });
+  if (!ov.animate) return;
+  const A = (el, kf, o) => el && el.animate(kf, { fill: "both", ...o }), $ = (q) => ov.querySelector(q);
+  // 1. koło rozjeżdża się z centrum
+  A($("#rRing"), [{ transform: "scale(0)", opacity: 0 }, { transform: "scale(1.06)", opacity: 1, offset: .75 }, { transform: "scale(1)", opacity: 1 }], { duration: 550, easing: "cubic-bezier(.2,.8,.3,1)" });
+  // 2. podziałki – wysuwają się od środka, po kolei wokół okręgu
+  ov.querySelectorAll(".tk").forEach(t => A(t, [{ transform: "scale(.35)", opacity: 0 }, { transform: "scale(1)", opacity: 1 }], { delay: 450 + +t.dataset.a / 360 * 600, duration: 320, easing: "cubic-bezier(.2,.9,.3,1.15)" }));
+  // 3. opisy kierunków
+  ov.querySelectorAll(".lb").forEach(t => A(t, [{ transform: "scale(.8)", opacity: 0 }, { transform: "scale(1)", opacity: 1 }], { delay: 1150 + +t.dataset.a / 360 * 500, duration: 300, easing: "ease-out" }));
+  // 4. strzałka: rośnie (na N), potem obraca się do kierunku
+  const rot = d == null ? 0 : (d + 180) % 360, rotE = rot > 180 ? rot - 360 : rot;
+  A($("#rArrow"), [{ transform: "rotate(0deg) scale(0)", opacity: 0 }, { transform: "rotate(0deg) scale(1.25)", opacity: 1, offset: .65 }, { transform: "rotate(0deg) scale(1)", opacity: 1 }], { delay: 1750, duration: 450, easing: "ease-out" }).onfinish = () =>
+    A($("#rArrow"), [{ transform: "rotate(0deg)" }, { transform: `rotate(${rotE}deg)` }], { duration: 900, easing: "cubic-bezier(.3,1.35,.5,1)" });
+  // 5. łuk 10 min: pojawia się na N i jedzie po okręgu do kierunku sprzed 10 min, potem smuga skrętu
+  if (d10 != null) {
+    const r10 = d10 > 180 ? d10 - 360 : d10;
+    A($("#rArcG"), [{ transform: "rotate(0deg)", opacity: 0 }, { transform: "rotate(0deg)", opacity: 1, offset: .15 }, { transform: `rotate(${r10}deg)`, opacity: 1 }], { delay: 3150, duration: 1000, easing: "cubic-bezier(.4,0,.2,1)" });
+    const tr = $("#rTrail");
+    if (tr) { const L = tr.getTotalLength(); A(tr, [{ strokeDasharray: `${L}`, strokeDashoffset: L }, { strokeDasharray: `${L}`, strokeDashoffset: 0 }], { delay: 4150, duration: 500, easing: "ease-out" }); }
+  }
+  A($("#rCapt"), [{ opacity: 0, transform: "translateY(6px)" }, { opacity: 1, transform: "none" }], { delay: d10 != null ? 4500 : 3000, duration: 350 });
+}
+function closeRose() { if (!roseEl) return; roseEl.remove(); roseEl = null; if (!modalEl && !zoomEl) document.body.style.overflow = ""; }
+
 // ---------- Okno z wykresem (klik w linię trendu na kafelku) ----------
 let modalEl = null;
 async function openChartModal(key) {
@@ -2391,12 +2458,12 @@ function closeChartModal() {
   }
   modalEl.remove(); modalEl = null; if (!zoomEl) document.body.style.overflow = "";
 }
-document.addEventListener("keydown", (e) => { if (e.key === "Escape") { if (modalEl) closeChartModal(); else closeTileZoom(); } });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") { if (roseEl) closeRose(); else if (modalEl) closeChartModal(); else closeTileZoom(); } });
 
 buildGauges();
 loadLatest().catch(err);
 setInterval(refresh, 5 * 60 * 1000);
 </script>
-<div style="position:fixed;right:10px;bottom:10px;z-index:60;background:#bf616a;color:#fff;font-size:12px;padding:4px 10px;border-radius:6px">Podgląd – ikona wiatru</div>
+<div style="position:fixed;right:10px;bottom:10px;z-index:60;background:#bf616a;color:#fff;font-size:12px;padding:4px 10px;border-radius:6px">Podgląd – ikona wiatru + róża</div>
 </body>
 </html>
