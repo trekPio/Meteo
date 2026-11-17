@@ -207,7 +207,7 @@
   .vcol { display:flex; flex-direction:column; align-items:center; gap:5px; }
   .vbox.tog { cursor:pointer; } .vbox.tog:hover { border-color:#4c5869; }
   .tcap { position:absolute; left:0; right:0; bottom:7px; text-align:center; font-size:11px; color:var(--muted); white-space:nowrap; pointer-events:none; }
-  .vbox.tog .vval { margin-top:-6px; display:inline-block; }
+  .vbox.tog .vval, .vbox.rb .vval { margin-top:-6px; display:inline-block; }   /* miejsce na podpis w polu */
   .cmodal { position:fixed; inset:0; z-index:100; background:rgba(6,8,11,.72); display:flex; align-items:center; justify-content:center; padding:24px; animation:mfade .15s ease; }
   @keyframes mfade { from { opacity:0; } }
   .cmodal .mbox { position:relative; width:min(1100px,100%); max-height:calc(100vh - 48px); overflow:auto; background:var(--card); border:1px solid var(--line); border-radius:12px; box-shadow:0 20px 60px rgba(0,0,0,.5); }
@@ -453,8 +453,8 @@ function buildRainTile(box) {
   <div class="rrow">
     <svg id="rCloud" viewBox="0 0 120 120" class="rcloud" aria-hidden="true"></svg>
     <div class="rboxes">
-      <div><div class="rcap">Intensywność</div><div class="vbox rb"><span class="wunit">mm/h</span><span class="vval" id="rRate">–</span></div></div>
-      <div><div class="rcap">Dziś</div><div class="vbox rb"><span class="wunit">mm</span><span class="vval" id="rDay">–</span></div></div>
+      <div class="vbox rb"><span class="wunit">mm/h</span><span class="vval" id="rRate">–</span><span class="tcap">intensywność</span></div>
+      <div class="vbox rb"><span class="wunit">mm</span><span class="vval" id="rDay">–</span><span class="tcap">dziś</span></div>
     </div>
     <div class="rls" id="rList">
       <div class="rr" style="margin-bottom:9px"><span class="rk" data-k="state">Stan</span><span class="rv" id="rState">–</span></div>
@@ -532,7 +532,7 @@ let pressUnit = "hpa", tMode = 0;   // tMode: 0 temperatura, 1 odczuwalna, 2 pun
 let tempUnit = "C", windUnit = "kmh", lastTiles = null;
 try { const u = JSON.parse(localStorage.getItem("meteoUnits") || "{}"); tempUnit = u.t || "C"; windUnit = u.w || "kmh"; pressUnit = u.p || "hpa"; tMode = [0, 1, 2].includes(u.f) ? u.f : 0; } catch (e) {}
 const saveUnits = () => { try { localStorage.setItem("meteoUnits", JSON.stringify({ t: tempUnit, w: windUnit, p: pressUnit, f: tMode })); } catch (e) {} };
-const redrawTiles = () => { if (lastTiles) { updateGauges(...lastTiles.g); updateWindTile(...lastTiles.w); updateMini(lastTiles.g[0]); } if (window.DIAL) DIAL.units(); if (typeof NEAR !== "undefined" && NEAR.me) drawNear(); };
+const redrawTiles = () => { if (lastTiles) { updateGauges(...lastTiles.g); updateWindTile(...lastTiles.w); updateMini(lastTiles.g[0]); updateCards(lastTiles.g[0]); } if (window.DIAL) DIAL.units(); if (typeof NEAR !== "undefined" && NEAR.me) drawNear(); };
 const tConv = (c) => c == null ? null : tempUnit === "K" ? c + 273.15 : tempUnit === "F" ? c * 1.8 + 32 : c;
 const tLabel = () => ({ K: "K", F: "°F" })[tempUnit] || "°C";   // kelwin bez znaku stopnia (zapis SI)
 const tDelta = (d) => d == null ? null : tempUnit === "F" ? d * 1.8 : d;   // różnica temperatur (K = °C)
@@ -662,9 +662,9 @@ function updateWindTile(v, t, ext = {}) {
 // ---------- Kafelki ----------
 function updateCards(v) {
   const cards = [
-    ["Odczuwalna", fmt(pick(v, "feels")), "°C", "punkt rosy " + fmt(pick(v, "dew")) + " °C"],
+    ["Odczuwalna", fmt(tConv(pick(v, "feels"))), tLabel(), "punkt rosy " + fmt(tConv(pick(v, "dew"))) + " " + tLabel()],
     ["Słońce", fmt(pick(v, "solar"), 0), "W/m²", "UV " + fmt(pick(v, "uvi"))],
-    ["W domu", fmt(pick(v, "tin")), "°C", "wilgotność " + fmt(pick(v, "hin"), 0) + " %"],
+    ["W domu", fmt(tConv(pick(v, "tin"))), tLabel(), "wilgotność " + fmt(pick(v, "hin"), 0) + " %"],
   ].filter(c => c[1] !== "–");
   document.getElementById("cards").innerHTML = cards.map(([l, val, u, s]) =>
     `<div class="box card"><div class="l">${l}</div><div class="v">${val}<small>${u}</small></div><div class="s">${s}</div></div>`).join("");
