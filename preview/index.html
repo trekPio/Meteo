@@ -199,7 +199,8 @@
   .spark.clk:hover { background:rgba(136,192,208,.08); }
   .vcol { display:flex; flex-direction:column; align-items:center; gap:5px; }
   .vbox.tog { cursor:pointer; } .vbox.tog:hover { border-color:#4c5869; }
-  .tcap { font-size:11px; color:#cfd6de; white-space:nowrap; background:#222a33; border:1px solid #3b4552; border-radius:6px; padding:1px 8px; }
+  .tcap { position:absolute; left:0; right:0; bottom:7px; text-align:center; font-size:11px; color:var(--muted); white-space:nowrap; pointer-events:none; }
+  .vbox.tog .vval { margin-top:-6px; display:inline-block; }
   .cmodal { position:fixed; inset:0; z-index:100; background:rgba(6,8,11,.72); display:flex; align-items:center; justify-content:center; padding:24px; animation:mfade .15s ease; }
   @keyframes mfade { from { opacity:0; } }
   .cmodal .mbox { position:relative; width:min(1100px,100%); max-height:calc(100vh - 48px); overflow:auto; background:var(--card); border:1px solid var(--line); border-radius:12px; box-shadow:0 20px 60px rgba(0,0,0,.5); }
@@ -380,7 +381,7 @@ function buildGauges() {
     const el = document.createElement("section"); el.className = "box gauge mtile"; el.dataset.chart = key;
     el.innerHTML = `<h2>${title}</h2>
       <div class="mrow"><svg id="ic-${key}" viewBox="0 0 120 220" class="mic" aria-hidden="true"></svg>
-        <div class="vcol"><div class="vbox${key === "temp" ? " tog" : ""}"${key === "temp" ? ' title="Kliknij: temperatura → odczuwalna → punkt rosy"' : ""}><span class="wunit${key !== "hum" ? " clk" : ""}" id="u-${key}"${key === "temp" ? ' title="Kliknij: °C / K"' : key === "press" ? ' title="Kliknij: hPa / mmHg"' : ""}>${unit}</span><i class="ti trend" id="tr-${key}"></i><span class="vval" id="v-${key}">–</span></div>${key === "temp" ? '<div class="tcap" id="cap-temp">temperatura</div>' : ""}</div></div>
+        <div class="vcol"><div class="vbox${key === "temp" ? " tog" : ""}"${key === "temp" ? ' title="Kliknij: temperatura → odczuwalna → punkt rosy"' : ""}><span class="wunit${key !== "hum" ? " clk" : ""}" id="u-${key}"${key === "temp" ? ' title="Kliknij: °C / K"' : key === "press" ? ' title="Kliknij: hPa / mmHg"' : ""}>${unit}</span><i class="ti trend" id="tr-${key}"></i><span class="vval" id="v-${key}">–</span>${key === "temp" ? '<span class="tcap" id="cap-temp">temperatura</span>' : ""}</div></div></div>
       <div class="spark clk" id="sp-${key}" title="Kliknij: wykres"></div>
       <div class="wfoot">
         <div><div class="l">Min · <span id="tmin-${key}">–</span></div><div class="v"><i class="ti ti-arrow-down"></i> <span id="min-${key}">–</span> <small class="u2-${key}">${unit}</small></div></div>
@@ -531,12 +532,14 @@ function updateGauges(v, rows = []) {
   document.getElementById("u-press").textContent = pLabel();
   document.getElementById("u-press").style.fontSize = pressUnit === "mmhg" ? "10px" : "";
   document.querySelectorAll(".u2-press").forEach(e => e.textContent = pLabel());
-  document.getElementById("cap-temp").textContent = ["temperatura", "odczuwalna", "punkt rosy"][tMode];
+  const cap = document.getElementById("cap-temp"), capT = ["temperatura", "odczuwalna", "punkt rosy"][tMode];
+  if (cap.textContent !== capT) { cap.textContent = capT; cap.animate?.([{ opacity: 0, transform: "translateY(4px)" }, { opacity: 1, transform: "none" }], { duration: 300, easing: "ease-out" }); }
   const DK = (key) => key === "temp" ? ["temp", "feels", "dew"][tMode] : key;   // klucz danych kafelka temperatury
   for (const [key, , , dec] of TILES) {
     const cv = key === "temp" ? tConv : key === "press" ? pConv : (x) => x, dk = DK(key);
     const val = cv(pick(v, dk));
-    document.getElementById("v-" + key).textContent = val == null ? "–" : f(val, key === "press" ? 0 : dec);
+    if (key === "temp") animTemp(document.getElementById("v-temp"), val, dec, tempUnit + tMode);
+    else document.getElementById("v-" + key).textContent = val == null ? "–" : f(val, key === "press" ? 0 : dec);
     let mn = null, mx = null;
     for (const r of rows) { const x = pick(r, dk); if (x == null) continue;
       if (!mn || x < mn.x) mn = { x, t: r.t }; if (!mx || x > mx.x) mx = { x, t: r.t }; }
@@ -586,8 +589,8 @@ function buildWindTile(box) {
     <div class="wbox"><span class="wunit clk" id="u-wind" title="Kliknij: km/h / m/s">km/h</span><i class="ti trend" id="tr-wind"></i><span id="wSpd" class="wspd">–</span><span id="wDir" class="wdir"></span><span id="wD10" class="wd10" title="Kierunek wiatru sprzed 10 minut (łuk na okręgu)"></span></div>
   </div>
   <div class="wfoot">
-    <div><div class="l">Porywy</div><div class="v"><i class="ti ti-wind"></i> <span id="wGust">–</span> <small class="u2-wind">km/h</small></div></div>
     <div title="Najsłabszy wiatr dziś (prędkość średnia)"><div class="l">Min · <span id="wMinT">–</span></div><div class="v"><i class="ti ti-arrow-down"></i> <span id="wMin">–</span> <small class="u2-wind">km/h</small></div></div>
+    <div><div class="l">Porywy</div><div class="v"><i class="ti ti-wind"></i> <span id="wGust">–</span> <small class="u2-wind">km/h</small></div></div>
     <div title="Najsilniejszy wiatr dziś (z porywami)"><div class="l">Maks · <span id="wMaxT">–</span></div><div class="v"><i class="ti ti-arrow-up"></i> <span id="wMax">–</span> <small class="u2-wind">km/h</small></div></div>
   </div>`;
   box.appendChild(el);
@@ -2269,6 +2272,34 @@ window.DIAL = (() => {
   };
 })();
 
+// ---------- Animacja zmiany wartości temperatury (podgląd: ?anim=licznik | przewijanie) ----------
+const TEMP_ANIM = new URLSearchParams(location.search).get("anim") === "przewijanie" ? "slide" : "count";
+function animTemp(el, val, dec, ctx) {
+  const show = (x) => x == null ? "–" : fmt(x, dec).replace("-", "−");
+  const old = el._v, oldCtx = el._ctx; el._v = val; el._ctx = ctx;
+  if (old == null || val == null || old === val) { el.textContent = show(val); return; }
+  const unitChanged = oldCtx && oldCtx[0] !== ctx[0];   // °C ↔ K: bez animacji liczenia
+  if (TEMP_ANIM === "slide" || unitChanged) {   // stara wartość odjeżdża w górę, nowa wjeżdża od dołu (w dół przy spadku)
+    const dir = val > old ? 1 : -1;
+    if (!el.animate) { el.textContent = show(val); return; }
+    el.getAnimations().forEach(a => a.cancel());
+    el.animate([{ transform: "none", opacity: 1 }, { transform: `translateY(${-dir * 60}%)`, opacity: 0 }], { duration: 160, easing: "ease-in" }).onfinish = () => {
+      el.textContent = show(val);
+      el.animate([{ transform: `translateY(${dir * 60}%)`, opacity: 0 }, { transform: "none", opacity: 1 }], { duration: 260, easing: "cubic-bezier(.2,.9,.3,1.2)" });
+    };
+    return;
+  }
+  // licznik: cyfry przeliczają się od starej do nowej wartości (0,7 s), kolor mignie ciepło / zimno
+  cancelAnimationFrame(el._raf); const t0 = performance.now(), D = 700;
+  el.style.transition = "color .2s"; el.style.color = val > old ? "#e5a88f" : "#8fc1d4";
+  const step = (now) => {
+    const k = Math.min(1, (now - t0) / D), e = 1 - Math.pow(1 - k, 3);
+    el.textContent = show(old + (val - old) * e);
+    if (k < 1) el._raf = requestAnimationFrame(step); else { el.textContent = show(val); el.style.color = ""; }
+  };
+  el._raf = requestAnimationFrame(step);
+}
+
 // ---------- Okno z wykresem (klik w linię trendu na kafelku) ----------
 let modalEl = null;
 async function openChartModal(key) {
@@ -2302,6 +2333,6 @@ buildGauges();
 loadLatest().catch(err);
 setInterval(refresh, 5 * 60 * 1000);
 </script>
-<div class="prevtag">Podgląd – kafelki Teraz (v2)</div>
+<div class="prevtag">Podgląd – kafelki Teraz (v3)</div>
 </body>
 </html>
