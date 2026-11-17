@@ -395,7 +395,7 @@ function buildGauges() {
     const el = document.createElement("section"); el.className = "box gauge mtile"; el.dataset.chart = key;
     el.innerHTML = `<h2>${title}</h2>
       <div class="mrow"><svg id="ic-${key}" viewBox="0 0 120 220" class="mic" aria-hidden="true"></svg>
-        <div class="vcol"><div class="vbox${key === "temp" ? " tog" : ""}"${key === "temp" ? ' title="Kliknij: temperatura → odczuwalna → punkt rosy"' : ""}><span class="wunit${key !== "hum" ? " clk" : ""}" id="u-${key}"${key === "temp" ? ' title="Kliknij: °C / K"' : key === "press" ? ' title="Kliknij: hPa / mmHg"' : ""}>${unit}</span><i class="ti trend" id="tr-${key}"></i><span class="vval" id="v-${key}">–</span>${key === "temp" ? '<span class="tcap" id="cap-temp">temperatura</span>' : ""}</div></div></div>
+        <div class="vcol"><div class="vbox${key === "temp" ? " tog" : ""}"${key === "temp" ? ' title="Kliknij: temperatura → odczuwalna → punkt rosy"' : ""}><span class="wunit${key !== "hum" ? " clk" : ""}" id="u-${key}"${key === "temp" ? ' title="Kliknij: °C → °F → K"' : key === "press" ? ' title="Kliknij: hPa / mmHg"' : ""}>${unit}</span><i class="ti trend" id="tr-${key}"></i><span class="vval" id="v-${key}">–</span>${key === "temp" ? '<span class="tcap" id="cap-temp">temperatura</span>' : ""}</div></div></div>
       <div class="spark clk" id="sp-${key}" title="Kliknij: wykres"></div>
       <div class="wfoot">
         <div><div class="l">Min · <span id="tmin-${key}">–</span></div><div class="v"><i class="ti ti-arrow-down"></i> <span id="min-${key}">–</span> <small class="u2-${key}">${unit}</small></div></div>
@@ -411,7 +411,7 @@ function buildGauges() {
     b.onclick = (e) => { e.stopPropagation(); closeTileZoom(); goToChart(t.dataset.chart); };
     t.appendChild(b);
   });
-  document.getElementById("u-temp").onclick = (e) => { e.stopPropagation(); tempUnit = tempUnit === "C" ? "K" : "C"; saveUnits(); redrawTiles(); };
+  document.getElementById("u-temp").onclick = (e) => { e.stopPropagation(); tempUnit = { C: "F", F: "K", K: "C" }[tempUnit] || "C"; saveUnits(); redrawTiles(); };   // °C → °F → K
   document.getElementById("u-press").onclick = () => { pressUnit = pressUnit === "hpa" ? "mmhg" : "hpa"; saveUnits(); redrawTiles(); };
   box.querySelector(".vbox.tog").onclick = () => { tMode = (tMode + 1) % 3; saveUnits(); redrawTiles(); };
   for (const [key] of TILES) document.getElementById("sp-" + key).onclick = () => openChartModal(key);
@@ -533,8 +533,10 @@ let tempUnit = "C", windUnit = "kmh", lastTiles = null;
 try { const u = JSON.parse(localStorage.getItem("meteoUnits") || "{}"); tempUnit = u.t || "C"; windUnit = u.w || "kmh"; pressUnit = u.p || "hpa"; tMode = [0, 1, 2].includes(u.f) ? u.f : 0; } catch (e) {}
 const saveUnits = () => { try { localStorage.setItem("meteoUnits", JSON.stringify({ t: tempUnit, w: windUnit, p: pressUnit, f: tMode })); } catch (e) {} };
 const redrawTiles = () => { if (lastTiles) { updateGauges(...lastTiles.g); updateWindTile(...lastTiles.w); updateMini(lastTiles.g[0]); } if (window.DIAL) DIAL.units(); if (typeof NEAR !== "undefined" && NEAR.me) drawNear(); };
-const tConv = (c) => c == null ? null : tempUnit === "K" ? c + 273.15 : c;
-const tLabel = () => tempUnit === "K" ? "K" : "°C";
+const tConv = (c) => c == null ? null : tempUnit === "K" ? c + 273.15 : tempUnit === "F" ? c * 1.8 + 32 : c;
+const tLabel = () => ({ K: "K", F: "°F" })[tempUnit] || "°C";   // kelwin bez znaku stopnia (zapis SI)
+const tDelta = (d) => d == null ? null : tempUnit === "F" ? d * 1.8 : d;   // różnica temperatur (K = °C)
+const tDeg = () => tempUnit === "K" ? " K" : "°";   // krótki zapis przy liczbie (mapa)
 const pConv = (x) => x == null ? null : pressUnit === "mmhg" ? x * 0.750062 : x;   // 1 hPa = 0,750062 mmHg
 const pLabel = () => pressUnit === "mmhg" ? "mmHg" : "hPa";
 
@@ -551,7 +553,7 @@ function updateGauges(v, rows = []) {
   const hm = (t) => new Date(t * 1000).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" });
   const f = (x, d) => fmt(x, d).replace("-", "−");
   document.getElementById("u-temp").textContent = tLabel();
-  document.getElementById("v-temp").style.fontSize = tempUnit === "K" ? "27px" : "";
+  { const tv = tConv(pick(v, ["temp", "feels", "dew"][tMode])); document.getElementById("v-temp").style.fontSize = tempUnit === "K" || (tempUnit === "F" && tv != null && (tv >= 99.95 || tv <= -9.95)) ? "27px" : ""; }
   document.querySelectorAll(".u2-temp").forEach(e => e.textContent = tLabel());
   document.getElementById("u-press").textContent = pLabel();
   document.getElementById("u-press").style.fontSize = pressUnit === "mmhg" ? "10px" : "";
@@ -1575,7 +1577,7 @@ function nearTable(L) {
   const row = (s) => {
     const d = s.temp - me.temp, w = nearWind(s.wind), g = nearWind(s.gust);
     return `<tr class="${s.me ? "me" : ""}"><td>${s.me ? "—" : fmt(s.km) + " km"}</td><td>${s.city || "–"}</td>
-      <td>${fmt(tConv(s.temp))} ${tLabel()}</td><td style="color:${nearDc(d)}">${s.me ? "" : (d > 0 ? "+" : "") + fmt(d)}</td>
+      <td>${fmt(tConv(s.temp))} ${tLabel()}</td><td style="color:${nearDc(d)}">${s.me ? "" : (d > 0 ? "+" : "") + fmt(tDelta(d))}</td>
       <td>${s.hum != null ? Math.round(s.hum) + " %" : na}</td><td>${s.pres != null ? Math.round(s.pres) : na}</td>
       <td>${w == null ? na : `${w} / ${g ?? "–"} ${wLabel()}`}</td><td>${s.rain_1h == null ? na : fmt(s.rain_1h) + " mm"}</td></tr>`;
   };
@@ -1612,7 +1614,7 @@ function nearMap(L) {
   const dot = (s, x, y) => { const d = s.temp - me.temp, f = nearFull(s);
     return `<g><title>${tip1(s)}</title>
       <circle cx="${x}" cy="${y}" r="${f ? 10 : 8}" fill="${f ? "#5aa2f0" : "#3b4552"}" stroke="#12161b" stroke-width="2"/>
-      <text x="${x}" y="${y - 16}" text-anchor="middle" fill="${nearDc(d)}" font-size="18">${fmt(tConv(s.temp))}${tempUnit === "K" ? " K" : "°"}</text></g>`; };
+      <text x="${x}" y="${y - 16}" text-anchor="middle" fill="${nearDc(d)}" font-size="18">${fmt(tConv(s.temp))}${tDeg()}</text></g>`; };
   const order = groups.map((G, gi) => [G, gi]).sort((a, b) => (b[0].same ? 1 : 0) - (a[0].same ? 1 : 0));   // grupy „ten sam adres” pod spodem
   order.forEach(([G, gi]) => {
     const n = G.m.length, lab = G.m[0].city || "";
@@ -1639,11 +1641,11 @@ function nearMap(L) {
       <circle cx="${G.x}" cy="${G.y}" r="15" fill="${f ? "#5aa2f0" : "#3b4552"}" stroke="#12161b" stroke-width="2"/>
       <circle cx="${G.x}" cy="${G.y}" r="19" fill="none" stroke="${f ? "#5aa2f0" : "#3b4552"}" stroke-opacity=".45" stroke-width="2"/>
       <text x="${G.x}" y="${G.y + 5}" text-anchor="middle" fill="#fff" font-size="14" font-weight="600">${n}</text>
-      <text x="${G.x - 26}" y="${G.y + 6}" text-anchor="end" fill="${nearDc(d)}" font-size="18">śr. ${fmt(tConv(avg))}${tempUnit === "K" ? " K" : "°"}</text>
+      <text x="${G.x - 26}" y="${G.y + 6}" text-anchor="end" fill="${nearDc(d)}" font-size="18">śr. ${fmt(tConv(avg))}${tDeg()}</text>
       <text x="${G.x}" y="${G.y + 40}" text-anchor="middle" fill="#8c98a6" font-size="16">${city} (${n})</text></g>`;
   });
   g += `<g><circle cx="${cx}" cy="${cy}" r="11" fill="#a3be8c" stroke="#12161b" stroke-width="2"/>
-    <text x="${cx}" y="${cy - 19}" text-anchor="middle" fill="#fff" font-size="20">${fmt(tConv(me.temp))}${tempUnit === "K" ? " K" : "°"}</text>
+    <text x="${cx}" y="${cy - 19}" text-anchor="middle" fill="#fff" font-size="20">${fmt(tConv(me.temp))}${tDeg()}</text>
     <text x="${cx}" y="${cy + 32}" text-anchor="middle" fill="#cfd6de" font-size="16">Moja stacja</text></g></g></svg>`;
   NEAR.groups = groups;
   const zb = (ic, act, t) => `<button class="home" data-z="${act}" title="${t}" aria-label="${t}"><i class="ti ${ic}"></i></button>`;
@@ -1794,7 +1796,7 @@ showPane(location.hash.slice(1) || (() => { try { return localStorage.getItem("m
 
 function updateMini(v) {
   const t = pick(v, "temp"), h = pick(v, "hum"), p = pick(v, "press"), w = pick(v, "wind"), r = pick(v, "rainDay");
-  const tv = t == null ? "–" : fmt(tConv(t), tempUnit === "K" ? 1 : 1).replace("-", "−") + " " + tLabel();
+  const tv = t == null ? "–" : fmt(tConv(t), 1).replace("-", "−") + " " + tLabel();
   const wv = w == null ? "–" : (windUnit === "kmh" ? fmt(w * 3.6, 0) + " km/h" : fmt(w, 1) + " m/s");
   document.getElementById("mini").innerHTML =
     `<span><i class="ti ti-temperature"></i><b>${tv}</b></span><span><i class="ti ti-droplet"></i><b>${h == null ? "–" : fmt(h, 0)}</b> %</span>` +
@@ -1819,7 +1821,7 @@ window.DIAL = (() => {
   const smooth = (cur, tgt, dt, rate) => cur + (tgt - cur) * (1 - Math.exp(-dt * rate));
   const FONT = "Rajdhani, system-ui, sans-serif";
 
-  // Skale wewnętrznie: °C, km/h; etykiety i cyfry w jednostkach z kafelków (°C / K, km/h / m/s)
+  // Skale wewnętrznie: °C, km/h; etykiety i cyfry w jednostkach z kafelków (°C / °F / K, km/h / m/s)
   const CFG = {
     temp: { label: "Temperatura", dec: 1, min: -20, max: 40, majors: [-20, 0, 20, 40], minorDiv: 4,
       colors: [[-20, "#3f7bd9"], [-10, "#3f7bd9"], [0, "#88c0d0"], [10, "#ebcb8b"], [30, "#d08770"], [40, "#bf616a"]] },
@@ -1862,6 +1864,7 @@ window.DIAL = (() => {
   function applyUnits() {   // jednostki z kafelków
     const t = CFG.temp, w = CFG.wind;
     if (tempUnit === "K") { t.unit = "K"; t.disp = x => x + 273.15; t.lab = v => nf(v + 273.15, 0); }
+    else if (tempUnit === "F") { t.unit = "°F"; t.disp = x => x * 1.8 + 32; t.lab = v => nf(v * 1.8 + 32, 0); }
     else { t.unit = "°C"; t.disp = x => x; t.lab = v => nf(v, 0); }
     if (windUnit === "ms") { w.unit = "m/s"; w.max = 28 * 3.6; w.majors = [0, 7, 14, 21, 28].map(x => x * 3.6); w.disp = x => x / 3.6; w.lab = v => nf(v / 3.6, 0); }
     else { w.unit = "km/h"; w.max = 100; w.majors = [0, 25, 50, 75, 100]; w.disp = x => x; w.lab = v => nf(v, 0); }
@@ -2317,13 +2320,13 @@ window.DIAL = (() => {
   };
 })();
 
-// ---------- Animacja zmiany wartości temperatury: licznik (przewijanie tylko przy zmianie °C ↔ K) ----------
+// ---------- Animacja zmiany wartości temperatury: licznik (przewijanie tylko przy zmianie jednostki °C / °F / K) ----------
 const TEMP_ANIM = "count";
 function animTemp(el, val, dec, ctx) {
   const show = (x) => x == null ? "–" : fmt(x, dec).replace("-", "−");
   const old = el._v, oldCtx = el._ctx; el._v = val; el._ctx = ctx;
   if (old == null || val == null || old === val) { el.textContent = show(val); return; }
-  const unitChanged = oldCtx && oldCtx[0] !== ctx[0];   // °C ↔ K: bez animacji liczenia
+  const unitChanged = oldCtx && oldCtx[0] !== ctx[0];   // zmiana jednostki: bez animacji liczenia
   if (TEMP_ANIM === "slide" || unitChanged) {   // stara wartość odjeżdża w górę, nowa wjeżdża od dołu (w dół przy spadku)
     const dir = val > old ? 1 : -1;
     if (!el.animate) { el.textContent = show(val); return; }
