@@ -2080,8 +2080,12 @@ window.DIAL = (() => {
         ctx.fillStyle = "#8a93a6"; ctx.font = `600 ${s * 0.036}px ${FONT}`; ctx.fillText(c.unit, cx, cy + s * 0.075);
         if (dd.top) { ctx.fillStyle = dd.top.color || "#a3abbb"; ctx.font = `600 ${s * 0.033}px ${FONT}`; ctx.fillText(dd.top.text, cx, cy - s * 0.07); }
         if (k === "wind" && dd.dir10 != null) {   // podpis paska: kierunek sprzed 10 min
-          ctx.fillStyle = "rgba(136,192,208,.95)"; ctx.font = `600 ${s * 0.027}px ${FONT}`;
-          ctx.fillText(`10 min temu: ${DIRS[Math.round(dd.dir10 / 22.5) % 16]} ${Math.round(dd.dir10)}°`, cx, cy + s * 0.108);
+          ctx.fillStyle = "rgba(136,192,208,.75)"; ctx.font = `600 ${s * 0.024}px ${FONT}`;
+          if ("letterSpacing" in ctx) ctx.letterSpacing = `${s * 0.004}px`;
+          ctx.fillText("10 MIN", cx, cy + s * 0.104);
+          if ("letterSpacing" in ctx) ctx.letterSpacing = "0px";
+          ctx.fillStyle = "rgba(136,192,208,.95)"; ctx.font = `700 ${s * 0.03}px ${FONT}`;
+          ctx.fillText(`${DIRS[Math.round(dd.dir10 / 22.5) % 16]} ${Math.round(dd.dir10)}°`, cx, cy + s * 0.13);
         }
         ctx.fillStyle = "#8a93a6"; ctx.font = `600 ${s * 0.038}px ${FONT}`;
         if ("letterSpacing" in ctx) ctx.letterSpacing = `${s * 0.007}px`;
