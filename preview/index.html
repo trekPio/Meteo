@@ -127,6 +127,9 @@
   .wdir { font-size:13px; color:#cfd6de; margin-top:4px; }
   .wfoot { display:grid; grid-template-columns:1fr 1fr; text-align:center; margin-top:6px; }
   .wfoot .l { font-size:12px; color:var(--muted); }
+  .windtile .wfoot { grid-template-columns:1fr 1fr 1fr; }
+  .wd10 { display:block; font-size:11px; color:#88c0d0; margin-top:3px; letter-spacing:.03em; }
+  #wArc { transition:d .8s ease; }
   .wfoot .v { font-size:22px; } .wfoot .v i, .wfoot small { color:var(--muted); font-size:13px; }
   .cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(170px, 1fr)); gap:12px; margin:0 0 24px; }
   .card { padding:12px 14px; }
@@ -196,7 +199,7 @@
   .spark.clk:hover { background:rgba(136,192,208,.08); }
   .vcol { display:flex; flex-direction:column; align-items:center; gap:5px; }
   .vbox.tog { cursor:pointer; } .vbox.tog:hover { border-color:#4c5869; }
-  .tcap { font-size:11px; color:var(--muted); letter-spacing:.02em; white-space:nowrap; }
+  .tcap { font-size:11px; color:#cfd6de; white-space:nowrap; background:#222a33; border:1px solid #3b4552; border-radius:6px; padding:1px 8px; }
   .cmodal { position:fixed; inset:0; z-index:100; background:rgba(6,8,11,.72); display:flex; align-items:center; justify-content:center; padding:24px; animation:mfade .15s ease; }
   @keyframes mfade { from { opacity:0; } }
   .cmodal .mbox { position:relative; width:min(1100px,100%); max-height:calc(100vh - 48px); overflow:auto; background:var(--card); border:1px solid var(--line); border-radius:12px; box-shadow:0 20px 60px rgba(0,0,0,.5); }
@@ -377,7 +380,7 @@ function buildGauges() {
     const el = document.createElement("section"); el.className = "box gauge mtile"; el.dataset.chart = key;
     el.innerHTML = `<h2>${title}</h2>
       <div class="mrow"><svg id="ic-${key}" viewBox="0 0 120 220" class="mic" aria-hidden="true"></svg>
-        <div class="vcol"><div class="vbox${key === "temp" ? " tog" : ""}"${key === "temp" ? ' title="Kliknij: temperatura / odczuwalna"' : ""}><span class="wunit${key !== "hum" ? " clk" : ""}" id="u-${key}"${key === "temp" ? ' title="Kliknij: °C / K"' : key === "press" ? ' title="Kliknij: hPa / mmHg"' : ""}>${unit}</span><i class="ti trend" id="tr-${key}"></i><span class="vval" id="v-${key}">–</span></div>${key === "temp" ? '<div class="tcap" id="cap-temp">temperatura powietrza</div>' : ""}</div></div>
+        <div class="vcol"><div class="vbox${key === "temp" ? " tog" : ""}"${key === "temp" ? ' title="Kliknij: temperatura → odczuwalna → punkt rosy"' : ""}><span class="wunit${key !== "hum" ? " clk" : ""}" id="u-${key}"${key === "temp" ? ' title="Kliknij: °C / K"' : key === "press" ? ' title="Kliknij: hPa / mmHg"' : ""}>${unit}</span><i class="ti trend" id="tr-${key}"></i><span class="vval" id="v-${key}">–</span></div>${key === "temp" ? '<div class="tcap" id="cap-temp">temperatura</div>' : ""}</div></div>
       <div class="spark clk" id="sp-${key}" title="Kliknij: wykres"></div>
       <div class="wfoot">
         <div><div class="l">Min · <span id="tmin-${key}">–</span></div><div class="v"><i class="ti ti-arrow-down"></i> <span id="min-${key}">–</span> <small class="u2-${key}">${unit}</small></div></div>
@@ -395,7 +398,7 @@ function buildGauges() {
   });
   document.getElementById("u-temp").onclick = (e) => { e.stopPropagation(); tempUnit = tempUnit === "C" ? "K" : "C"; saveUnits(); redrawTiles(); };
   document.getElementById("u-press").onclick = () => { pressUnit = pressUnit === "hpa" ? "mmhg" : "hpa"; saveUnits(); redrawTiles(); };
-  box.querySelector(".vbox.tog").onclick = () => { feelsMode = !feelsMode; saveUnits(); redrawTiles(); };
+  box.querySelector(".vbox.tog").onclick = () => { tMode = (tMode + 1) % 3; saveUnits(); redrawTiles(); };
   for (const [key] of TILES) document.getElementById("sp-" + key).onclick = () => openChartModal(key);
   document.getElementById("u-wind").onclick = () => {
     windUnit = windUnit === "kmh" ? "ms" : "kmh"; saveUnits(); redrawTiles();
@@ -500,10 +503,10 @@ async function goToChart(key) {
 }
 
 // ---------- Jednostki przełączane kliknięciem (zapamiętywane w przeglądarce) ----------
-let pressUnit = "hpa", feelsMode = false;
+let pressUnit = "hpa", tMode = 0;   // tMode: 0 temperatura, 1 odczuwalna, 2 punkt rosy
 let tempUnit = "C", windUnit = "kmh", lastTiles = null;
-try { const u = JSON.parse(localStorage.getItem("meteoUnits") || "{}"); tempUnit = u.t || "C"; windUnit = u.w || "kmh"; pressUnit = u.p || "hpa"; feelsMode = u.f === 1; } catch (e) {}
-const saveUnits = () => { try { localStorage.setItem("meteoUnits", JSON.stringify({ t: tempUnit, w: windUnit, p: pressUnit, f: feelsMode ? 1 : 0 })); } catch (e) {} };
+try { const u = JSON.parse(localStorage.getItem("meteoUnits") || "{}"); tempUnit = u.t || "C"; windUnit = u.w || "kmh"; pressUnit = u.p || "hpa"; tMode = [0, 1, 2].includes(u.f) ? u.f : 0; } catch (e) {}
+const saveUnits = () => { try { localStorage.setItem("meteoUnits", JSON.stringify({ t: tempUnit, w: windUnit, p: pressUnit, f: tMode })); } catch (e) {} };
 const redrawTiles = () => { if (lastTiles) { updateGauges(...lastTiles.g); updateWindTile(...lastTiles.w); updateMini(lastTiles.g[0]); } if (window.DIAL) DIAL.units(); if (typeof NEAR !== "undefined" && NEAR.me) drawNear(); };
 const tConv = (c) => c == null ? null : tempUnit === "K" ? c + 273.15 : c;
 const tLabel = () => tempUnit === "K" ? "K" : "°C";
@@ -528,8 +531,8 @@ function updateGauges(v, rows = []) {
   document.getElementById("u-press").textContent = pLabel();
   document.getElementById("u-press").style.fontSize = pressUnit === "mmhg" ? "10px" : "";
   document.querySelectorAll(".u2-press").forEach(e => e.textContent = pLabel());
-  document.getElementById("cap-temp").textContent = feelsMode ? "temperatura odczuwalna" : "temperatura powietrza";
-  const DK = (key) => key === "temp" && feelsMode ? "feels" : key;   // klucz danych: temperatura lub odczuwalna
+  document.getElementById("cap-temp").textContent = ["temperatura", "odczuwalna", "punkt rosy"][tMode];
+  const DK = (key) => key === "temp" ? ["temp", "feels", "dew"][tMode] : key;   // klucz danych kafelka temperatury
   for (const [key, , , dec] of TILES) {
     const cv = key === "temp" ? tConv : key === "press" ? pConv : (x) => x, dk = DK(key);
     const val = cv(pick(v, dk));
@@ -576,34 +579,43 @@ function buildWindTile(box) {
         <line x1="100" y1="16" x2="100" y2="28"/><line x1="184" y1="100" x2="172" y2="100"/>
         <line x1="100" y1="184" x2="100" y2="172"/><line x1="16" y1="100" x2="28" y2="100"/></g>
       <text x="100" y="11" text-anchor="middle" font-size="11" fill="#8c98a6">N</text>
-      <path id="wArc" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round"/>
+      <path id="wArc" fill="none" stroke="#88c0d0" stroke-width="5" stroke-linecap="round"/>
       <g id="wArrow" style="transition:transform .8s ease;transform-box:view-box;transform-origin:100px 100px">
         <path d="M100 58 L126 134 L100 118 L74 134 Z" fill="none" stroke="#fff" stroke-width="4" stroke-linejoin="round"/></g>
     </svg>
-    <div class="wbox"><span class="wunit clk" id="u-wind" title="Kliknij: km/h / m/s">km/h</span><i class="ti trend" id="tr-wind"></i><span id="wSpd" class="wspd">–</span><span id="wDir" class="wdir"></span></div>
+    <div class="wbox"><span class="wunit clk" id="u-wind" title="Kliknij: km/h / m/s">km/h</span><i class="ti trend" id="tr-wind"></i><span id="wSpd" class="wspd">–</span><span id="wDir" class="wdir"></span><span id="wD10" class="wd10" title="Kierunek wiatru sprzed 10 minut (łuk na okręgu)"></span></div>
   </div>
   <div class="wfoot">
     <div><div class="l">Porywy</div><div class="v"><i class="ti ti-wind"></i> <span id="wGust">–</span> <small class="u2-wind">km/h</small></div></div>
-    <div><div class="l">Maks. dziś</div><div class="v"><i class="ti ti-trending-up"></i> <span id="wMax">–</span> <small class="u2-wind">km/h</small></div></div>
+    <div title="Najsłabszy wiatr dziś (prędkość średnia)"><div class="l">Min · <span id="wMinT">–</span></div><div class="v"><i class="ti ti-arrow-down"></i> <span id="wMin">–</span> <small class="u2-wind">km/h</small></div></div>
+    <div title="Najsilniejszy wiatr dziś (z porywami)"><div class="l">Maks · <span id="wMaxT">–</span></div><div class="v"><i class="ti ti-arrow-up"></i> <span id="wMax">–</span> <small class="u2-wind">km/h</small></div></div>
   </div>`;
   box.appendChild(el);
 }
 
-function updateWindTile(v, t, maxToday) {
+function updateWindTile(v, t, ext = {}) {
   document.getElementById("u-wind").textContent = wLabel();
   document.querySelectorAll(".u2-wind").forEach(e => e.textContent = wLabel());
   const d = pick(v, "dir");
   document.getElementById("wSpd").textContent = kmh(pick(v, "wind")) ?? "–";
   document.getElementById("wSpd").classList.toggle("ms", windUnit === "ms");
   document.getElementById("wGust").textContent = kmh(pick(v, "gust")) ?? "–";
-  document.getElementById("wMax").textContent = kmh(maxToday) ?? "–";
+  const hm = (x) => new Date(x * 1000).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" });
+  document.getElementById("wMax").textContent = ext.mx ? kmh(ext.mx.x) : "–";
+  document.getElementById("wMaxT").textContent = ext.mx ? hm(ext.mx.t) : "–";
+  document.getElementById("wMin").textContent = ext.mn ? kmh(ext.mn.x) : "–";
+  document.getElementById("wMinT").textContent = ext.mn ? hm(ext.mn.t) : "–";
   const age = Math.round((Date.now() / 1000 - t) / 60);
   document.getElementById("wAge").textContent = "· " + (age < 1 ? "teraz" : age + " min temu");
   if (d == null) return;
   document.getElementById("wDir").textContent = `${DIRS[Math.round(d / 22.5) % 16]} (${Math.round(d)}°)`;
   document.getElementById("wArrow").style.transform = `rotate(${(d + 180) % 360}deg)`;   // strzałka: dokąd wieje
-  const [x1, y1] = polar(d - 14, 66), [x2, y2] = polar(d + 14, 66);                      // łuk: skąd wieje
-  document.getElementById("wArc").setAttribute("d", `M${x1.toFixed(1)} ${y1.toFixed(1)} A66 66 0 0 1 ${x2.toFixed(1)} ${y2.toFixed(1)}`);
+  // łuk: skąd wiało 10 min temu (jak pasek „10 MIN” w sekcji Zegar)
+  const d10 = ext.d10, arc = document.getElementById("wArc"), lab = document.getElementById("wD10");
+  if (d10 == null) { arc.setAttribute("d", ""); lab.textContent = ""; return; }
+  const [x1, y1] = polar(d10 - 12, 66), [x2, y2] = polar(d10 + 12, 66);
+  arc.setAttribute("d", `M${x1.toFixed(1)} ${y1.toFixed(1)} A66 66 0 0 1 ${x2.toFixed(1)} ${y2.toFixed(1)}`);
+  lab.textContent = `10 min: ${DIRS[Math.round(d10 / 22.5) % 16]} ${Math.round(d10)}°`;
 }
 
 
@@ -1675,8 +1687,17 @@ async function loadLatest() {
   updateGauges(v, rows);
   const vals = rows.map(r => pick(r, "gust") ?? pick(r, "wind")).filter(x => x != null);
   const mxw = vals.length ? Math.max(...vals, pick(v, "gust") ?? 0) : pick(v, "gust");
-  updateWindTile(v, L.t, mxw);
-  lastTiles = { g: [v, rows], w: [v, L.t, mxw] };
+  // min (prędkość) / maks (z porywami) dnia z godziną, z bieżącym pomiarem; kierunek sprzed 10 min
+  const allR = [...rows, { ...v, t: L.t }]; let wmn = null, wmx = null;
+  for (const r of allR) {
+    const w = pick(r, "wind"), g = Math.max(pick(r, "gust") ?? -1, w ?? -1);
+    if (w != null && (!wmn || w < wmn.x)) wmn = { x: w, t: r.t };
+    if (g >= 0 && (!wmx || g > wmx.x)) wmx = { x: g, t: r.t };
+  }
+  const o10 = rows.filter(r => r.t <= L.t - 600 && pick(r, "dir") != null).pop();
+  const wext = { mn: wmn, mx: wmx, d10: o10 ? pick(o10, "dir") : (v["wind.10_minute_average_wind_direction"] ?? null) };
+  updateWindTile(v, L.t, wext);
+  lastTiles = { g: [v, rows], w: [v, L.t, wext] };
   if (window.DIAL) DIAL.update(v, rows, L.t, mxw);
   updateRainTile(v, await get("data/rain_norms.json").catch(() => ({})));
   loadNear(v).catch(() => {});
@@ -2281,6 +2302,6 @@ buildGauges();
 loadLatest().catch(err);
 setInterval(refresh, 5 * 60 * 1000);
 </script>
-<div class="prevtag">Podgląd – kafelki Teraz</div>
+<div class="prevtag">Podgląd – kafelki Teraz (v2)</div>
 </body>
 </html>
