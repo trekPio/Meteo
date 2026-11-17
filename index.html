@@ -347,7 +347,7 @@ function iconThermo(t) {
     for (let a = 0; a < 360; a += 45) { const [x1, y1] = polarC(a, 17, 32, 34), [x2, y2] = polarC(a, 25, 32, 34); g += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}"/>`; }
     return `<g stroke="${c}" stroke-width="${w}" stroke-linecap="round">${g}</g>`; };
   let sym = t < COLD_BELOW ? flakeAt(32, 34, 24, 16, TILE_BG) + flakeAt(32, 34, 24, 6, col) : sun(16, TILE_BG) + sun(6, col);
-  if (t <= 0) sym += [[19, 70], [8, 90], [30, 90]].map(([x, y]) => flakeAt(x, y, 10.5, 8, TILE_BG) + flakeAt(x, y, 10.5, 3, col)).join("");   // mróz: trzy małe szronki
+  if (t <= 0) sym += [[13, 76], [24, 98], [13, 120]].map(([x, y]) => flakeAt(x, y, 9, 8, TILE_BG) + flakeAt(x, y, 9, 3, col)).join("");   // mróz: trzy małe szronki w kolumnie obok rurki (nie zachodzą na ściankę ani poza ikonę)
   return `<g fill="none" stroke="${FG}" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
     <path d="M41 157 V66"/><path d="M63 157 V40 a11 11 0 0 0 -16 -10"/><path d="M41 157 A28 28 0 1 0 63 157"/></g>
     <rect x="47" y="${top}" width="10" height="${(186 - top).toFixed(1)}" rx="5" fill="${col}"/>
