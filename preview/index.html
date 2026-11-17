@@ -101,7 +101,7 @@
   .rcloud { width:80px; height:80px; flex:none; }
   .rboxes { display:flex; flex-direction:column; gap:10px; }
   .rcap { font-size:11px; color:var(--muted); margin-bottom:4px; text-align:center; }
-  .vbox.rb { height:72px; }
+  .vbox.rb { height:84px; }   /* jak pola temperatury, wilgotności i ciśnienia */
   .rls { min-width:200px; flex:1; max-width:260px; position:relative; }
   .rr { display:flex; justify-content:space-between; gap:18px; font-size:14px; }
   .rk { color:var(--muted); cursor:pointer; border-bottom:1px dotted #4c5869; } .rk:hover { color:#cfd6de; }
@@ -2333,6 +2333,6 @@ buildGauges();
 loadLatest().catch(err);
 setInterval(refresh, 5 * 60 * 1000);
 </script>
-<div class="prevtag">Podgląd – kafelki Teraz (v3)</div>
+<div class="prevtag">Podgląd – kafelki Teraz (v4)</div>
 </body>
 </html>
