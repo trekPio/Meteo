@@ -1,5 +1,5 @@
 {
- "fetched": 1795276533,
+ "fetched": 1795276874,
  "home": [
   52.531,
   19.146
@@ -26,15 +26,15 @@
    "lon": 18.998534,
    "alt": 66,
    "km": 11.7,
-   "t": 1795276215,
+   "t": 1795276856,
    "temp": 2.5,
    "hum": 90,
-   "pres": 1007.6,
+   "pres": 1007.5,
    "rain_1h": 0,
    "rain_24h": 0,
    "rain_live": 0,
    "wind": 5,
-   "wind_dir": 232,
+   "wind_dir": 226,
    "gust": 12,
    "gust_dir": 359
   },
@@ -46,17 +46,17 @@
    "lon": 19.061559,
    "alt": 58,
    "km": 14.0,
-   "t": 1795275946,
-   "temp": 2.6,
-   "hum": 80,
+   "t": 1795276548,
+   "temp": 2.7,
+   "hum": 81,
    "pres": 998.8,
    "rain_1h": 0,
    "rain_24h": 0,
    "rain_live": 0,
-   "wind": 5,
-   "wind_dir": 249,
-   "gust": 14,
-   "gust_dir": 228
+   "wind": 4,
+   "wind_dir": 234,
+   "gust": 9,
+   "gust_dir": 247
   },
   {
    "id": "70:ee:50:00:5c:9e",
@@ -138,22 +138,6 @@
    "wind_dir": 241,
    "gust": 10,
    "gust_dir": 359
-  },
-  {
-   "id": "70:ee:50:bc:95:5a",
-   "city": "Boniewo",
-   "street": null,
-   "lat": 52.474824,
-   "lon": 18.88991,
-   "alt": 98,
-   "km": 18.4,
-   "t": 1795276124,
-   "temp": 2.4,
-   "hum": 87,
-   "pres": 1007.3,
-   "rain_1h": 0,
-   "rain_24h": 0,
-   "rain_live": 0
   },
   {
    "id": "70:ee:50:21:1d:a6",
