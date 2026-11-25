@@ -1,7 +1,7 @@
 {
- "t": 1795579256,
+ "t": 1795579496,
  "src": "auto",
- "fetched": 1795579263,
+ "fetched": 1795579530,
  "values": {
   "outdoor.temperature": 0.4,
   "outdoor.feels_like": -2.4,
@@ -29,8 +29,8 @@
   "wind.wind_gust": 2.4,
   "wind.wind_direction": 331.0,
   "wind.10_minute_average_wind_direction": 331.0,
-  "pressure.relative": 1012.3,
-  "pressure.absolute": 1012.3,
+  "pressure.relative": 1012.2,
+  "pressure.absolute": 1012.2,
   "battery.haptic_array_battery": 2.18,
   "battery.haptic_array_capacitor": 2.0
  },
